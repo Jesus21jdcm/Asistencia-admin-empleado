@@ -58,6 +58,7 @@ const HorizontalBar = ({ label, percentage, colorClass }: { label: string, perce
 export const DashboardPage = () => {
   const { user } = useAuthContext();
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Queries de Firebase
   const { data: records = [] } = useQuery({
@@ -73,6 +74,11 @@ export const DashboardPage = () => {
   const { data: zones = [] } = useQuery({
     queryKey: ['zones'],
     queryFn: zoneService.getZones,
+  });
+
+  const { data: allLeaves = [] } = useQuery({
+    queryKey: ['leaves'],
+    queryFn: attendanceService.getAllLeaveRequests,
   });
 
   // Procesamiento de datos reales
@@ -147,11 +153,18 @@ export const DashboardPage = () => {
      return {
        id: record.id || Math.random().toString(),
        name: emp?.displayName || 'Usuario Eliminado',
+       documentId: emp?.documentId || '',
        action: hasCheckOut ? 'Salida registrada' : (isLate ? 'Llegada tardía' : 'Entrada registrada'),
        time: format(parsedDate, 'hh:mm a'),
        type: hasCheckOut ? 'check-out' : (isLate ? 'late' : 'check-in'),
        size: zone?.name || 'Sede Eliminada'
      };
+  });
+
+  const filteredRecentList = recentList.filter(act => {
+    if (!searchQuery) return true;
+    const s = searchQuery.toLowerCase();
+    return act.name.toLowerCase().includes(s) || act.documentId.toLowerCase().includes(s);
   });
 
   // Generar días del mes para el calendario
@@ -163,6 +176,16 @@ export const DashboardPage = () => {
   const startDay = monthStart.getDay(); // 0 = Domingo
   const blankDays = Array(startDay).fill(null);
 
+  const pendingLeaves = allLeaves.filter(leave => leave.status === 'pending');
+  
+  const filteredPendingLeaves = pendingLeaves.filter(leave => {
+    if (!searchQuery) return true;
+    const emp = employees.find(e => e.uid === leave.userId);
+    if (!emp) return false;
+    const s = searchQuery.toLowerCase();
+    return emp.displayName.toLowerCase().includes(s) || (emp.documentId && emp.documentId.toLowerCase().includes(s));
+  });
+
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
 
@@ -172,10 +195,16 @@ export const DashboardPage = () => {
       {/* --- COLUMNA IZQUIERDA (Principal) --- */}
       <div className="flex-1 flex flex-col space-y-6 overflow-y-auto pr-1 pb-4 custom-scrollbar">
         
-        {/* Top Search Bar (Mock) */}
-        <div className="flex items-center bg-white rounded-2xl px-4 py-2.5 border border-slate-100 shadow-sm w-full max-w-md">
+        {/* Top Search Bar */}
+        <div className="flex items-center bg-white rounded-2xl px-4 py-2.5 border border-slate-100 shadow-sm w-full max-w-md focus-within:ring-2 focus-within:ring-primary-500 transition-all">
           <Search className="w-5 h-5 text-slate-400 mr-2" />
-          <input type="text" placeholder="Buscar empleados o sedes..." className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400" />
+          <input 
+            type="text" 
+            placeholder="Buscar por cédula o nombre..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400" 
+          />
         </div>
 
         {/* Banner Welcome */}
@@ -231,7 +260,7 @@ export const DashboardPage = () => {
           </div>
           
           <div className="space-y-3">
-            {recentList.length > 0 ? recentList.map((act) => (
+            {filteredRecentList.length > 0 ? filteredRecentList.map((act) => (
               <div key={act.id} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
                 <div className="flex items-center space-x-4">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${act.type === 'late' ? 'bg-amber-100' : act.type === 'check-out' ? 'bg-slate-100' : 'bg-indigo-50'}`}>
@@ -239,6 +268,7 @@ export const DashboardPage = () => {
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-slate-800">{act.name}</h4>
+                    {act.documentId && <p className="text-[10px] text-slate-400 font-mono">V-{act.documentId}</p>}
                     <p className="text-xs text-slate-500">{act.action}</p>
                   </div>
                 </div>
@@ -249,7 +279,7 @@ export const DashboardPage = () => {
                 </div>
               </div>
             )) : (
-              <div className="text-center py-8 text-slate-500 text-sm">No hay actividad reciente.</div>
+              <div className="text-center py-8 text-slate-500 text-sm">No hay resultados.</div>
             )}
           </div>
         </div>
@@ -321,37 +351,40 @@ export const DashboardPage = () => {
           </div>
           
           <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-            Tienes solicitudes de justificación pendientes por revisar y empleados que no han marcado entrada.
+            {filteredPendingLeaves.length > 0 
+              ? `Mostrando ${filteredPendingLeaves.length} justificaciones.`
+              : searchQuery ? 'No hay resultados para tu búsqueda.' : 'No tienes justificaciones pendientes por revisar.'}
           </p>
           
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer border border-transparent hover:border-slate-100">
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                <AlertCircle className="w-5 h-5 text-amber-600" />
+          <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
+            {filteredPendingLeaves.length > 0 ? filteredPendingLeaves.map(leave => {
+              const emp = employees.find(e => e.uid === leave.userId);
+              return (
+                <div key={leave.id} className="flex items-start space-x-3 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer border border-transparent hover:border-slate-100">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-1">
+                    <FileText className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-center mb-0.5">
+                      <h4 className="text-sm font-semibold text-slate-800 truncate">{emp?.displayName || 'Empleado'}</h4>
+                      <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{leave.date}</span>
+                    </div>
+                    {emp?.documentId && <p className="text-[10px] text-slate-400 font-mono mb-1">V-{emp.documentId}</p>}
+                    <p className="text-xs text-slate-600 line-clamp-2" title={leave.reason}>{leave.reason}</p>
+                  </div>
+                </div>
+              );
+            }) : (
+              <div className="flex flex-col items-center justify-center py-6 text-slate-400">
+                <CheckCircle2 className="w-8 h-8 mb-2 opacity-50" />
+                <span className="text-xs font-medium">Todo al día</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-semibold text-slate-800 truncate">{firstCheckInToday.size - onTimeCount} Llegadas tardías</h4>
-                <p className="text-xs text-slate-500 truncate">El día de hoy</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-3 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer border border-transparent hover:border-slate-100">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <FileText className="w-5 h-5 text-blue-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-semibold text-slate-800 truncate">{totalEmployees - presentCount} Ausentes</h4>
-                <p className="text-xs text-slate-500 truncate">Sin registrar entrada</p>
-              </div>
-            </div>
+            )}
           </div>
           
           <div className="mt-8 flex gap-2">
-            <button className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors">
-              Ignorar
-            </button>
             <button className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-600/20">
-              Revisar
+              Ir a Justificaciones
             </button>
           </div>
         </div>

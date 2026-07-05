@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuthContext } from '../../context/AuthContext';
 import { authService } from '../../services/authService';
 import { zoneService } from '../../services/zoneService';
+import { shiftService } from '../../services/shiftService';
 import { attendanceService } from '../../services/attendanceService';
-import { LogOut, MapPin, Loader2, CheckCircle2, Clock, AlertCircle, FileText, X, Building } from 'lucide-react';
+import { LogOut, MapPin, Loader2, CheckCircle2, Clock, AlertCircle, FileText, X, Building, CalendarRange } from 'lucide-react';
 import { toast } from 'sonner';
 import { isPointInPolygon, getCenterOfBounds, getDistance } from 'geolib';
-import type { Zone, AttendanceRecord, LeaveRequest } from '../../types/models';
+import type { Zone, AttendanceRecord, LeaveRequest, Shift } from '../../types/models';
 import { format, subDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -14,6 +15,7 @@ export const EmployeePage: React.FC = () => {
   const { user } = useAuthContext();
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [zones, setZones] = useState<Zone[]>([]);
+  const [shift, setShift] = useState<Shift | null>(null);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [justifications, setJustifications] = useState<LeaveRequest[]>([]);
@@ -36,20 +38,31 @@ export const EmployeePage: React.FC = () => {
       }
 
       try {
+        if (user.shiftId) {
+          const fetchedShift = await shiftService.getShiftById(user.shiftId);
+          setShift(fetchedShift);
+        } else {
+          setShift(null);
+        }
+      } catch (shiftError) {
+        console.error("Error cargando turno", shiftError);
+      }
+
+      try {
         const fetchedRecords = await attendanceService.getAttendanceRecordsByUser(user.uid);
         setAttendanceRecords(fetchedRecords);
         
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
         const record = await attendanceService.getTodayRecordByUser(user.uid, todayStr);
         setTodayRecord(record);
 
         const fetchedJustifications = await attendanceService.getLeaveRequestsByUser(user.uid);
         setJustifications(fetchedJustifications);
       } catch (recordError) {
-        toast.error('Error al cargar tu historial de asistencia', { id: 'history-error' });
+        console.warn('El historial aún no se ha cargado o está vacío.', recordError);
       }
     } catch (error) {
-      toast.error('Error al cargar la información', { id: 'load-error' });
+      console.warn('Ocurrió un error general al cargar la información inicial.', error);
     } finally {
       setIsLoading(false);
     }
@@ -111,14 +124,15 @@ export const EmployeePage: React.FC = () => {
         if (matchedZone) {
           try {
             const now = new Date();
-            const dateStr = now.toISOString().split('T')[0];
+            const dateStr = format(now, 'yyyy-MM-dd');
             const timestampStr = now.toISOString();
 
             if (!todayRecord) {
               // --- ES UNA ENTRADA ---
               let isLate = false;
-              if (matchedZone.entryTime) {
-                const [hours, minutes] = matchedZone.entryTime.split(':').map(Number);
+              const entryLimit = shift?.entryTime || matchedZone.entryTime;
+              if (entryLimit) {
+                const [hours, minutes] = entryLimit.split(':').map(Number);
                 const limitTime = new Date();
                 limitTime.setHours(hours, minutes, 0, 0);
                 if (now > limitTime) isLate = true;
@@ -145,8 +159,9 @@ export const EmployeePage: React.FC = () => {
             } else if (!todayRecord.checkOut) {
               // --- ES UNA SALIDA ---
               let isEarly = false;
-              if (matchedZone.exitTime) {
-                const [hours, minutes] = matchedZone.exitTime.split(':').map(Number);
+              const exitLimit = shift?.exitTime || matchedZone.exitTime;
+              if (exitLimit) {
+                const [hours, minutes] = exitLimit.split(':').map(Number);
                 const limitTime = new Date();
                 limitTime.setHours(hours, minutes, 0, 0);
                 if (now < limitTime) isEarly = true;
@@ -256,20 +271,37 @@ export const EmployeePage: React.FC = () => {
               <Building className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">Tu Sede Asignada</h3>
+              <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">Tu Sede y Horario Asignado</h3>
               <p className="text-lg font-bold text-slate-900 leading-tight">
                 {user?.zoneId ? (zones.find(z => z.id === user.zoneId)?.name || 'Cargando sede...') : 'Sin sede asignada'}
               </p>
               {user?.zoneId && zones.find(z => z.id === user.zoneId) && (
                 <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-slate-600 font-medium">
-                  <span className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    Entrada: {zones.find(z => z.id === user.zoneId)?.entryTime || '09:00'}
-                  </span>
-                  <span className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    Salida: {zones.find(z => z.id === user.zoneId)?.exitTime || '18:00'}
-                  </span>
+                  {shift ? (
+                    <>
+                      <span className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 shadow-sm text-indigo-700">
+                        <CalendarRange className="w-3.5 h-3.5 text-indigo-500" />
+                        {shift.name} ({shift.entryTime} - {shift.exitTime})
+                      </span>
+                      {shift.lunchStartTime && shift.lunchEndTime && (
+                        <span className="flex items-center gap-1.5 bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200 shadow-sm text-orange-700">
+                          <Clock className="w-3.5 h-3.5 text-orange-500" />
+                          Almuerzo: {shift.lunchStartTime} a {shift.lunchEndTime}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        Entrada: {zones.find(z => z.id === user.zoneId)?.entryTime || '09:00'}
+                      </span>
+                      <span className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        Salida: {zones.find(z => z.id === user.zoneId)?.exitTime || '18:00'}
+                      </span>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -302,8 +334,24 @@ export const EmployeePage: React.FC = () => {
             disabled={isCheckingIn || !!(todayRecord && todayRecord.checkOut)}
             className="w-full md:w-auto shrink-0 relative group"
           >
-            <div className={`absolute -inset-1 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-200 ${todayRecord ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-primary-600 to-indigo-600'}`}></div>
-            <div className={`relative flex items-center justify-center px-8 py-4 text-white rounded-2xl shadow-md transition-all active:scale-95 disabled:opacity-80 disabled:active:scale-100 ${todayRecord ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-primary-600 to-indigo-600'}`}>
+            <div className={`absolute -inset-1 rounded-2xl blur transition duration-200 ${
+              todayRecord && todayRecord.checkOut 
+                ? 'opacity-0' 
+                : 'opacity-25 group-hover:opacity-50'
+            } ${
+              todayRecord && todayRecord.checkOut 
+                ? 'bg-slate-400'
+                : todayRecord 
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500' 
+                  : 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+            }`}></div>
+            <div className={`relative flex items-center justify-center px-8 py-4 text-white rounded-2xl shadow-md transition-all active:scale-95 disabled:active:scale-100 ${
+              todayRecord && todayRecord.checkOut 
+                ? 'bg-slate-400 cursor-not-allowed opacity-90'
+                : todayRecord 
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600' 
+                  : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700'
+            }`}>
               {isCheckingIn ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin mr-2" />

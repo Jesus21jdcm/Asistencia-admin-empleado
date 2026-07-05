@@ -7,6 +7,7 @@ const COLLECTION_NAME = 'usuarios';
 export interface Employee extends User {
   status: 'pendiente' | 'activo' | 'rechazado';
   zoneId?: string;
+  shiftId?: string;
   createdAt?: string;
 }
 
@@ -37,19 +38,23 @@ export const employeeService = {
     })) as Employee[];
   },
 
-  approveEmployee: async (uid: string, zoneId: string): Promise<void> => {
+  approveEmployee: async (uid: string, zoneId: string, shiftId?: string): Promise<void> => {
     const docRef = doc(db, COLLECTION_NAME, uid);
-    await updateDoc(docRef, {
+    const data: any = {
       status: 'activo',
       zoneId: zoneId
-    });
+    };
+    if (shiftId) data.shiftId = shiftId;
+    
+    await updateDoc(docRef, data);
   },
 
-  updateEmployeeZone: async (uid: string, zoneId: string): Promise<void> => {
+  updateEmployeeZoneAndShift: async (uid: string, zoneId: string, shiftId: string): Promise<void> => {
     const docRef = doc(db, COLLECTION_NAME, uid);
-    await updateDoc(docRef, {
-      zoneId: zoneId
-    });
+    const data: any = {};
+    if (zoneId) data.zoneId = zoneId;
+    if (shiftId !== undefined) data.shiftId = shiftId; // could be empty to remove shift
+    await updateDoc(docRef, data);
   },
 
   rejectEmployee: async (uid: string): Promise<void> => {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, MapPin, Users, CalendarCheck, FileText, LogOut } from 'lucide-react';
+import { LayoutDashboard, MapPin, Users, CalendarCheck, FileText, LogOut, Clock } from 'lucide-react';
 import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services/authService';
 import { clsx } from 'clsx';
@@ -13,6 +13,7 @@ const cn = (...inputs: (string | undefined | null | false)[]) => {
 const navItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Geocercas', path: '/zones', icon: MapPin },
+  { name: 'Turnos', path: '/shifts', icon: Clock },
   { name: 'Empleados', path: '/employees', icon: Users },
   { name: 'Asistencia', path: '/attendance', icon: CalendarCheck },
   { name: 'Justificaciones', path: '/leaves', icon: FileText },

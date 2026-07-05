@@ -29,6 +29,12 @@ export const attendanceService = {
     await updateDoc(docRef, record);
   },
 
+  deleteRecord: async (id: string): Promise<void> => {
+    const { doc, deleteDoc } = await import('firebase/firestore');
+    const docRef = doc(db, COLLECTION_NAME, id);
+    await deleteDoc(docRef);
+  },
+
   getAttendanceRecordsByUser: async (userId: string): Promise<AttendanceRecord[]> => {
     const { where } = await import('firebase/firestore');
     const q = query(
@@ -72,6 +78,16 @@ export const attendanceService = {
     );
     const querySnapshot = await getDocs(q);
     // Sort manually by date desc if needed, or rely on date field
+    const results = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as import('../types/models').LeaveRequest[];
+    return results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  },
+
+  getAllLeaveRequests: async (): Promise<import('../types/models').LeaveRequest[]> => {
+    const q = query(collection(db, 'justificaciones'));
+    const querySnapshot = await getDocs(q);
     const results = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()

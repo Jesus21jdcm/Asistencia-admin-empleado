@@ -10,6 +10,7 @@ import { AdminLayout } from '../layouts/AdminLayout';
 import { LoginPage } from '../pages/auth/LoginPage';
 import { DashboardPage } from '../pages/dashboard/DashboardPage';
 import { ZonesPage } from '../pages/zones/ZonesPage';
+import { ShiftsPage } from '../pages/shifts/ShiftsPage';
 import { EmployeesPage } from '../pages/employees/EmployeesPage';
 import { AttendancePage } from '../pages/attendance/AttendancePage';
 import { EmployeePage } from '../pages/employee/EmployeePage';
@@ -38,6 +39,7 @@ export const AppRouter: React.FC = () => {
             <Route element={<AdminLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/zones" element={<ZonesPage />} />
+              <Route path="/shifts" element={<ShiftsPage />} />
               <Route path="/employees" element={<EmployeesPage />} />
               <Route path="/attendance" element={<AttendancePage />} />
               <Route path="/leaves" element={<PlaceholderPage title="Justificaciones" />} />

@@ -30,9 +30,13 @@ export const useAuth = (): UseAuthReturn => {
                   uid: firebaseUser.uid,
                   email: firebaseUser.email!,
                   displayName: userData.displayName || firebaseUser.displayName || (userData.role === 'admin' ? 'Admin' : 'Empleado'),
+                  firstName: userData.firstName,
+                  lastName: userData.lastName,
+                  documentId: userData.documentId,
                   role: userData.role,
                   photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
                   zoneId: userData.zoneId || undefined,
+                  shiftId: userData.shiftId || undefined,
                 });
               } else {
                 await authService.logout();

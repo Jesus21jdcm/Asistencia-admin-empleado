@@ -9,6 +9,7 @@ import {
 import { toast } from 'sonner';
 import { employeeService } from '../../services/employeeService';
 import { zoneService } from '../../services/zoneService';
+import { shiftService } from '../../services/shiftService';
 
 export const EmployeesPage = () => {
   const queryClient = useQueryClient();
@@ -16,6 +17,7 @@ export const EmployeesPage = () => {
   
   // Guardamos localmente qué sede ha seleccionado el admin para cada empleado pendiente
   const [selectedZones, setSelectedZones] = useState<Record<string, string>>({});
+  const [selectedShifts, setSelectedShifts] = useState<Record<string, string>>({});
 
   // Queries
   const { data: pendingEmployees = [], isLoading: isLoadingPending } = useQuery({
@@ -33,10 +35,15 @@ export const EmployeesPage = () => {
     queryFn: zoneService.getZones,
   });
 
+  const { data: shifts = [], isLoading: isLoadingShifts } = useQuery({
+    queryKey: ['shifts'],
+    queryFn: shiftService.getShifts,
+  });
+
   // Mutations
   const approveMutation = useMutation({
-    mutationFn: ({ uid, zoneId }: { uid: string; zoneId: string }) => 
-      employeeService.approveEmployee(uid, zoneId),
+    mutationFn: ({ uid, zoneId, shiftId }: { uid: string; zoneId: string; shiftId?: string }) => 
+      employeeService.approveEmployee(uid, zoneId, shiftId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success('Empleado aprobado y asignado correctamente');
@@ -54,8 +61,8 @@ export const EmployeesPage = () => {
   });
 
   const updateZoneMutation = useMutation({
-    mutationFn: ({ uid, zoneId }: { uid: string; zoneId: string }) => 
-      employeeService.updateEmployeeZone(uid, zoneId),
+    mutationFn: ({ uid, zoneId, shiftId }: { uid: string; zoneId: string, shiftId: string }) => 
+      employeeService.updateEmployeeZoneAndShift(uid, zoneId, shiftId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success('Sede reasignada correctamente');
@@ -65,15 +72,20 @@ export const EmployeesPage = () => {
 
   const handleApprove = (uid: string) => {
     const zoneId = selectedZones[uid];
+    const shiftId = selectedShifts[uid];
     if (!zoneId) {
       toast.warning('Por favor, selecciona una sede antes de aprobar.');
       return;
     }
-    approveMutation.mutate({ uid, zoneId });
+    approveMutation.mutate({ uid, zoneId, shiftId });
   };
 
   const handleZoneChange = (uid: string, zoneId: string) => {
     setSelectedZones(prev => ({ ...prev, [uid]: zoneId }));
+  };
+
+  const handleShiftChange = (uid: string, shiftId: string) => {
+    setSelectedShifts(prev => ({ ...prev, [uid]: shiftId }));
   };
 
   return (
@@ -149,11 +161,11 @@ export const EmployeesPage = () => {
                     </div>
 
                     {/* Sede Selector */}
-                    <div className="mt-4 space-y-2">
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        Asignar Sede Física
-                      </label>
-                      <div className="relative">
+                    <div className="mt-4 space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                          Sede Física
+                        </label>
                         <select
                           value={selectedZones[employee.uid] || ''}
                           onChange={(e) => handleZoneChange(employee.uid, e.target.value)}
@@ -162,7 +174,25 @@ export const EmployeesPage = () => {
                           <option value="">Selecciona una sede...</option>
                           {zones.map((zone) => (
                             <option key={zone.id} value={zone.id}>
-                              {zone.name} (Polígono de 4 pts)
+                              {zone.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                          Turno (Opcional)
+                        </label>
+                        <select
+                          value={selectedShifts[employee.uid] || ''}
+                          onChange={(e) => handleShiftChange(employee.uid, e.target.value)}
+                          className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 hover:bg-white transition-colors"
+                        >
+                          <option value="">Horario por defecto de la Sede</option>
+                          {shifts.map((shift) => (
+                            <option key={shift.id} value={shift.id}>
+                              {shift.name} ({shift.entryTime} - {shift.exitTime})
                             </option>
                           ))}
                         </select>
@@ -201,20 +231,21 @@ export const EmployeesPage = () => {
                   <th className="px-6 py-4">Empleado</th>
                   <th className="px-6 py-4">Correo</th>
                   <th className="px-6 py-4">Sede Asignada</th>
+                  <th className="px-6 py-4">Turno Asignado</th>
                   <th className="px-6 py-4"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoadingActive || isLoadingZones ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
                       <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary-500" />
                       Cargando empleados activos...
                     </td>
                   </tr>
                 ) : activeEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
                       <Users className="w-12 h-12 mx-auto mb-3 text-slate-300" />
                       <p>No hay empleados activos en el sistema.</p>
                     </td>
@@ -237,12 +268,28 @@ export const EmployeesPage = () => {
                             <Building className="w-4 h-4 mr-2 text-slate-400" />
                             <select
                               value={employee.zoneId || ''}
-                              onChange={(e) => updateZoneMutation.mutate({ uid: employee.uid, zoneId: e.target.value })}
-                              className="bg-transparent text-sm focus:outline-none border-b border-transparent focus:border-slate-300 pb-0.5 cursor-pointer font-medium hover:text-primary-600 transition-colors"
+                              onChange={(e) => updateZoneMutation.mutate({ uid: employee.uid, zoneId: e.target.value, shiftId: employee.shiftId || '' })}
+                              className="bg-transparent text-sm focus:outline-none border-b border-transparent focus:border-slate-300 pb-0.5 cursor-pointer font-medium hover:text-primary-600 transition-colors max-w-[150px] truncate"
                             >
                               {zones.map((zone) => (
                                 <option key={zone.id} value={zone.id}>
                                   {zone.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center text-slate-700">
+                            <select
+                              value={employee.shiftId || ''}
+                              onChange={(e) => updateZoneMutation.mutate({ uid: employee.uid, zoneId: employee.zoneId || '', shiftId: e.target.value })}
+                              className="bg-transparent text-sm focus:outline-none border-b border-transparent focus:border-slate-300 pb-0.5 cursor-pointer font-medium hover:text-primary-600 transition-colors max-w-[150px] truncate"
+                            >
+                              <option value="">Por defecto (Sede)</option>
+                              {shifts.map((shift) => (
+                                <option key={shift.id} value={shift.id}>
+                                  {shift.name}
                                 </option>
                               ))}
                             </select>

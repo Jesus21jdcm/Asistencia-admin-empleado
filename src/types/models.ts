@@ -4,10 +4,23 @@ export interface User {
   uid: string;
   email: string;
   displayName: string;
+  firstName?: string;
+  lastName?: string;
+  documentId?: string;
   role: Role;
   photoURL?: string;
   status?: 'pendiente' | 'activo' | 'rechazado';
   zoneId?: string;
+  shiftId?: string; // ID del turno asignado
+}
+
+export interface Shift {
+  id: string;
+  name: string; // Ej: "Turno Mañana"
+  entryTime: string; // Formato HH:mm
+  exitTime: string; // Formato HH:mm
+  lunchStartTime?: string; // Formato HH:mm
+  lunchEndTime?: string; // Formato HH:mm
 }
 
 export interface Zone {

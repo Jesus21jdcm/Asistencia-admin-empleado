@@ -35,8 +35,12 @@ export const authService = {
         uid: firebaseUser.uid,
         email: firebaseUser.email!,
         displayName: userData.displayName || firebaseUser.displayName || (userData.role === 'admin' ? 'Admin' : 'Empleado'),
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        documentId: userData.documentId,
         role: userData.role,
         photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
+        zoneId: userData.zoneId || undefined,
       };
     } catch (error: any) {
       console.error("Error during login:", error);
@@ -44,7 +48,14 @@ export const authService = {
     }
   },
 
-  register: async (email: string, password: string, displayName: string, role: 'admin' | 'employee'): Promise<void> => {
+  register: async (
+    email: string, 
+    password: string, 
+    firstName: string, 
+    lastName: string, 
+    documentId: string, 
+    role: 'admin' | 'employee'
+  ): Promise<void> => {
     const { createUserWithEmailAndPassword } = await import('firebase/auth');
     const { setDoc } = await import('firebase/firestore');
     
@@ -52,12 +63,17 @@ export const authService = {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
+      const displayName = `${firstName} ${lastName}`.trim();
+
       await setDoc(doc(db, 'usuarios', user.uid), {
         email,
         displayName,
+        firstName,
+        lastName,
+        documentId,
         role,
         status: role === 'employee' ? 'pendiente' : 'activo',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       });
       
       // After registering, logout so the user can login properly if needed,

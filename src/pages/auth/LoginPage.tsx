@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { authService } from '../../services/authService';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, Loader2, ShieldCheck, User } from 'lucide-react';
+import { Lock, Mail, Loader2, ShieldCheck, User, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 
 const loginSchema = z.object({
@@ -13,7 +13,11 @@ const loginSchema = z.object({
 });
 
 const registerSchema = z.object({
-  displayName: z.string().min(2, { message: 'El nombre es obligatorio' }),
+  firstName: z.string().min(2, { message: 'El nombre es obligatorio' }),
+  lastName: z.string().min(2, { message: 'El apellido es obligatorio' }),
+  documentId: z.string()
+    .min(5, { message: 'La cédula es obligatoria' })
+    .regex(/^[0-9]+$/, { message: 'La cédula solo debe contener números' }),
   email: z.string().email({ message: 'Ingresa un correo válido' }),
   password: z.string().min(6, { message: 'La contraseña debe tener al menos 6 caracteres' }),
 });
@@ -50,7 +54,11 @@ export const LoginPage: React.FC = () => {
       toast.success('Sesión iniciada correctamente');
       navigate('/dashboard', { replace: true });
     } catch (error: any) {
-      toast.error(error.message || 'Error al iniciar sesión');
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        toast.error('Las credenciales no son correctas o no están registradas.');
+      } else {
+        toast.error('Ocurrió un error al intentar iniciar sesión.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -59,7 +67,7 @@ export const LoginPage: React.FC = () => {
   const onRegisterSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true);
     try {
-      await authService.register(data.email, data.password, data.displayName, 'employee');
+      await authService.register(data.email, data.password, data.firstName, data.lastName, data.documentId, 'employee');
       toast.success('Cuenta creada exitosamente. Espera la validación del administrador.');
       setIsLogin(true);
       resetSignup();
@@ -138,37 +146,80 @@ export const LoginPage: React.FC = () => {
               disabled={isLoading}
               className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-xl shadow-sm shadow-primary-500/30 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 mt-2"
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                  Verificando...
-                </>
-              ) : (
-                'Iniciar Sesión'
-              )}
+              <span className={`flex items-center ${isLoading ? '' : 'hidden'}`}>
+                <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                Verificando...
+              </span>
+              <span className={isLoading ? 'hidden' : ''}>
+                Iniciar Sesión
+              </span>
             </button>
           </form>
         ) : (
           <form onSubmit={handleSubmitSignup(onRegisterSubmit)} className="space-y-5">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="firstName-signup">
+                  Nombres
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <input
+                    id="firstName-signup"
+                    type="text"
+                    placeholder="Juan Carlos"
+                    className={`block w-full pl-10 pr-3 py-2.5 border ${
+                      errorsSignup.firstName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
+                    } rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors bg-slate-50/50 hover:bg-white`}
+                    {...registerSignup('firstName')}
+                  />
+                </div>
+                {errorsSignup.firstName && <p className="mt-1 text-sm text-red-500">{errorsSignup.firstName.message}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="lastName-signup">
+                  Apellidos
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <input
+                    id="lastName-signup"
+                    type="text"
+                    placeholder="Pérez Gómez"
+                    className={`block w-full pl-10 pr-3 py-2.5 border ${
+                      errorsSignup.lastName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
+                    } rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors bg-slate-50/50 hover:bg-white`}
+                    {...registerSignup('lastName')}
+                  />
+                </div>
+                {errorsSignup.lastName && <p className="mt-1 text-sm text-red-500">{errorsSignup.lastName.message}</p>}
+              </div>
+            </div>
+
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="name-signup">
-                Nombre Completo
+              <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="documentId-signup">
+                Cédula / Documento de Identidad
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-slate-400" />
+                  <CreditCard className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
-                  id="name-signup"
+                  id="documentId-signup"
                   type="text"
-                  placeholder="Juan Pérez"
+                  placeholder="12345678"
                   className={`block w-full pl-10 pr-3 py-2.5 border ${
-                    errorsSignup.displayName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
+                    errorsSignup.documentId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
                   } rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors bg-slate-50/50 hover:bg-white`}
-                  {...registerSignup('displayName')}
+                  {...registerSignup('documentId')}
                 />
               </div>
-              {errorsSignup.displayName && <p className="mt-1 text-sm text-red-500">{errorsSignup.displayName.message}</p>}
+              {errorsSignup.documentId && <p className="mt-1 text-sm text-red-500">{errorsSignup.documentId.message}</p>}
             </div>
 
             <div>
@@ -218,14 +269,13 @@ export const LoginPage: React.FC = () => {
               disabled={isLoading}
               className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-xl shadow-sm shadow-primary-500/30 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 mt-2"
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                  Registrando...
-                </>
-              ) : (
-                'Registrarse'
-              )}
+              <span className={`flex items-center ${isLoading ? '' : 'hidden'}`}>
+                <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                Registrando...
+              </span>
+              <span className={isLoading ? 'hidden' : ''}>
+                Registrarse
+              </span>
             </button>
           </form>
         )}
