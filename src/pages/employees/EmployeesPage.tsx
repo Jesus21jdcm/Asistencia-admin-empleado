@@ -163,7 +163,7 @@ export const EmployeesPage = () => {
             activeTab === 'active' ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          Empleado Activo
+          Empleados Activos
         </button>
       </div>
 

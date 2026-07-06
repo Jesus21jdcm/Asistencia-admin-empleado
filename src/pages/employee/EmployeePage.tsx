@@ -21,8 +21,9 @@ export const EmployeePage: React.FC = () => {
   const [justifications, setJustifications] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Modal Justificación
+  // Modal Justificación / Permiso
   const [showJustifyModal, setShowJustifyModal] = useState(false);
+  const [modalType, setModalType] = useState<'tardiness' | 'leave'>('tardiness');
   const [justifyReason, setJustifyReason] = useState('');
   const [justifyDate, setJustifyDate] = useState('');
   const [justifyEndDate, setJustifyEndDate] = useState('');
@@ -156,6 +157,7 @@ export const EmployeePage: React.FC = () => {
               if (isLate) {
                 toast.warning(`¡Asistencia registrada con retraso! Justifica tu tardanza.`, { id: 'checkin-late' });
                 setJustifyDate(dateStr);
+                setModalType('tardiness');
                 setShowJustifyModal(true);
               } else {
                 toast.success(`¡Entrada registrada a tiempo en ${matchedZone.name}!`, { id: 'checkin-success' });
@@ -220,9 +222,10 @@ export const EmployeePage: React.FC = () => {
         reason: justifyReason,
         status: 'pending',
         startDate: justifyDate,
-        endDate: justifyEndDate || justifyDate
+        endDate: justifyEndDate || justifyDate,
+        type: modalType
       });
-      toast.success('Justificación enviada correctamente', { id: 'justify-success' });
+      toast.success(modalType === 'leave' ? 'Permiso solicitado correctamente' : 'Justificación enviada correctamente', { id: 'justify-success' });
       setShowJustifyModal(false);
       setJustifyReason('');
       setJustifyDate('');
@@ -399,6 +402,14 @@ export const EmployeePage: React.FC = () => {
                   const record = attendanceRecords.find(r => r.date === dayStr);
                   const isToday = i === 0;
                   
+                  const activeLeave = justifications.find(l => {
+                    if (l.status !== 'approved') return false;
+                    const start = l.startDate || (l as any).date;
+                    const end = l.endDate || (l as any).date;
+                    if (!start) return false;
+                    return dayStr >= start && dayStr <= end;
+                  });
+                  
                   return (
                     <li key={i} className={`p-4 hover:bg-slate-50 flex justify-between items-center transition-colors ${isToday ? 'bg-slate-50/50' : ''}`}>
                       <div>
@@ -408,6 +419,10 @@ export const EmployeePage: React.FC = () => {
                         {record ? (
                           <p className="text-xs text-slate-500 mt-0.5">
                             Sede: {getZoneName(record.zoneId)}
+                          </p>
+                        ) : activeLeave ? (
+                          <p className="text-xs text-blue-500 mt-0.5 font-medium truncate max-w-[200px]" title={activeLeave.reason}>
+                            {activeLeave.reason}
                           </p>
                         ) : (
                           <p className="text-xs text-slate-400 mt-0.5 italic">
@@ -438,8 +453,12 @@ export const EmployeePage: React.FC = () => {
                               </div>
                             )}
                           </>
+                        ) : activeLeave ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+                            Permiso Aprobado
+                          </span>
                         ) : (
-                          <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                             Ausente
                           </span>
                         )}
@@ -452,22 +471,36 @@ export const EmployeePage: React.FC = () => {
           </section>
 
           <section className="bg-white rounded-none shadow-sm border border-[#6EA2B3]/30 border-t-4 border-t-[#49769F] p-6 flex flex-col justify-start">
-            <div className="flex items-center gap-2 mb-4">
-              <AlertCircle className="w-5 h-5 text-amber-500" />
-              <h2 className="text-lg font-bold text-slate-900">Mis Justificaciones</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-amber-500" />
+                <h2 className="text-lg font-bold text-slate-900">Permisos y Justificaciones</h2>
+              </div>
+              <button
+                onClick={() => {
+                  setModalType('leave');
+                  setJustifyDate('');
+                  setJustifyEndDate('');
+                  setJustifyReason('');
+                  setShowJustifyModal(true);
+                }}
+                className="text-xs font-semibold bg-[#49769F]/10 text-[#49769F] px-3 py-1.5 rounded-none btn-angled hover:bg-[#49769F]/20 transition-colors"
+              >
+                + Solicitar Permiso
+              </button>
             </div>
             
-            <div className="overflow-y-auto max-h-[300px] -mx-2 px-2">
+            <div className="overflow-y-auto overflow-x-hidden max-h-[300px] -mx-2 px-2 pb-2">
               {justifications.length === 0 ? (
                 <div className="text-center text-slate-500 py-6">
                   <FileText className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">No has enviado justificaciones.</p>
+                  <p className="text-sm">No tienes permisos ni justificaciones.</p>
                 </div>
               ) : (
                 <ul className="space-y-3">
                   {justifications.map(req => (
-                    <li key={req.id} className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 text-sm">
-                      <div className="flex justify-between items-start mb-1">
+                    <li key={req.id} className="bg-white border border-slate-200 rounded-xl p-4 text-sm shadow-sm hover:shadow-md transition-all">
+                      <div className="flex flex-wrap justify-between items-start gap-2 mb-2">
                         <span className="font-semibold text-slate-800 text-xs">
                           {(() => {
                             const startD = req.startDate || (req as any).date;
@@ -476,15 +509,23 @@ export const EmployeePage: React.FC = () => {
                             return `Del ${format(new Date(startD), "dd/MM/yyyy")} al ${format(new Date(endD), "dd/MM/yyyy")}`;
                           })()}
                         </span>
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                          req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            req.type === 'leave' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
+                          }`}>
+                            {req.type === 'leave' ? 'Permiso' : 'Tardanza'}
+                          </span>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 
+
                           req.status === 'rejected' ? 'bg-red-100 text-red-700' : 
                           'bg-amber-100 text-amber-700'
                         }`}>
                           {req.status === 'approved' ? 'Aprobada' : req.status === 'rejected' ? 'Rechazada' : 'Pendiente'}
                         </span>
                       </div>
-                      <p className="text-slate-600 line-clamp-2" title={req.reason}>{req.reason}</p>
+                    </div>
+                    <p className="text-slate-600 line-clamp-2" title={req.reason}>{req.reason}</p>
                     </li>
                   ))}
                 </ul>
@@ -499,7 +540,9 @@ export const EmployeePage: React.FC = () => {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-bold text-xl text-slate-900">Nueva Justificación</h3>
+              <h3 className="font-bold text-xl text-slate-900">
+                {modalType === 'leave' ? 'Solicitar Permiso' : 'Justificar Tardanza'}
+              </h3>
               <button 
                 onClick={() => setShowJustifyModal(false)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition-colors"
@@ -518,7 +561,8 @@ export const EmployeePage: React.FC = () => {
                     required
                     value={justifyDate}
                     onChange={(e) => setJustifyDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    readOnly={modalType === 'tardiness'}
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-none focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm ${modalType === 'tardiness' ? 'bg-slate-100 cursor-not-allowed text-slate-500' : ''}`}
                   />
                 </div>
                 <div>
@@ -530,7 +574,8 @@ export const EmployeePage: React.FC = () => {
                     value={justifyEndDate}
                     min={justifyDate}
                     onChange={(e) => setJustifyEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    disabled={modalType === 'tardiness'}
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-none focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm ${modalType === 'tardiness' ? 'bg-slate-100 cursor-not-allowed opacity-50' : ''}`}
                   />
                 </div>
               </div>
@@ -543,8 +588,8 @@ export const EmployeePage: React.FC = () => {
                   rows={4}
                   value={justifyReason}
                   onChange={(e) => setJustifyReason(e.target.value)}
-                  placeholder="Explica brevemente la razón de la tardanza o ausencia..."
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm resize-none"
+                  placeholder={modalType === 'leave' ? "Motivo del permiso (vacaciones, cita médica...)" : "Explica brevemente la razón de la tardanza..."}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-none focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm resize-none"
                 />
               </div>
               <div className="pt-2 flex gap-3">

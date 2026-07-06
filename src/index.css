@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
 
 @theme {
   --color-primary-50: #eef2ff;
@@ -21,25 +21,58 @@
     @apply bg-slate-50 text-slate-900 antialiased selection:bg-primary-100 selection:text-primary-700;
   }
 }
-@layer utilities { 
-  .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; } 
-  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } 
-  .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; } 
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; } 
 
-  .sidebar-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; } 
-  .sidebar-scrollbar::-webkit-scrollbar-track { background: transparent; } 
-  .sidebar-scrollbar::-webkit-scrollbar-thumb { background: transparent; border-radius: 9999px; transition: background 0.3s ease; } 
-  .sidebar-scrollbar:hover::-webkit-scrollbar-thumb { background: #7BBDE8; } 
-  .sidebar-scrollbar::-webkit-scrollbar-thumb:hover { background: #BDD8E9; }
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #cbd5e1;
+  }
+
+  .sidebar-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .sidebar-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .sidebar-scrollbar::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 9999px;
+    transition: background 0.3s ease;
+  }
+
+  .sidebar-scrollbar:hover::-webkit-scrollbar-thumb {
+    background: #7BBDE8;
+  }
+
+  .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #BDD8E9;
+  }
 
   /* Tablas Alternadas y Gradientes */
   .table-gradient-rows tbody tr:nth-child(even) {
     background: linear-gradient(to right, rgba(189, 216, 233, 0.2), #ffffff);
   }
+
   .table-gradient-rows tbody tr {
     border-bottom: 1px solid rgba(110, 162, 179, 0.3);
   }
+
   .table-gradient-rows th {
     border-bottom: 2px solid rgba(110, 162, 179, 0.5);
   }
@@ -49,6 +82,7 @@
     clip-path: polygon(12px 0, 100% 0, 100% 100%, 0 100%);
     border-radius: 0;
   }
+
   /* Ajuste para íconos u otros botones simétricos si se requiere (corte en ambos lados) */
   .btn-angled-both {
     clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);

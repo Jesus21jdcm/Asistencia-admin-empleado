@@ -3,6 +3,8 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, MapPin, Users, CalendarCheck, FileText, LogOut, Clock, Menu, X, Search } from 'lucide-react';
 import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services/authService';
+import { attendanceService } from '../services/attendanceService';
+import { useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -14,9 +16,9 @@ const navItems = [
   { name: 'Panel GeoAsisto', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Oficinas', path: '/zones', icon: MapPin },
   { name: 'Turnos', path: '/shifts', icon: Clock },
-  { name: 'Empleado', path: '/employees', icon: Users },
+  { name: 'Empleados', path: '/employees', icon: Users },
   { name: 'Asistencia', path: '/attendance', icon: CalendarCheck },
-  { name: 'Justificaciones', path: '/leaves', icon: FileText },
+  { name: 'Permisos', path: '/leaves', icon: FileText },
 ];
 
 export const AdminLayout: React.FC = () => {
@@ -24,6 +26,13 @@ export const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const { data: leaves = [] } = useQuery({
+    queryKey: ['leaves'],
+    queryFn: attendanceService.getAllLeaveRequests,
+  });
+
+  const pendingLeavesCount = leaves.filter(l => l.status === 'pending').length;
 
   const handleLogout = async () => {
     try {
@@ -73,7 +82,7 @@ export const AdminLayout: React.FC = () => {
               onClick={() => setIsMobileMenuOpen(false)}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group",
+                  "flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative",
                   isActive
                     ? "bg-primary-50 text-primary-700 shadow-sm shadow-primary-100/50"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
@@ -82,6 +91,12 @@ export const AdminLayout: React.FC = () => {
             >
               <item.icon className="w-5 h-5 mr-3 flex-shrink-0" />
               {item.name}
+              
+              {item.path === '/leaves' && pendingLeavesCount > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm animate-in zoom-in duration-300">
+                  {pendingLeavesCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -104,11 +119,14 @@ export const AdminLayout: React.FC = () => {
       <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 w-full relative">
 
         {/* Mobile Header (Only visible on small screens) */}
-        <div className="md:hidden h-16 bg-white border-b border-slate-200 flex items-center px-4 justify-between shrink-0 shadow-sm z-30">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="GeoAsistencia" className="h-8 w-auto" />
+        <div className="md:hidden h-16 bg-white border-b border-slate-200 flex items-center px-4 justify-between shrink-0 shadow-sm z-30 relative">
+          {/* Spacer para flex-between */}
+          <div className="w-10"></div>
+          
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <span className="text-primary-800 font-bold text-lg tracking-[0.1em]">GEOASISTO</span>
           </div>
+
           <button
             className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
             onClick={() => setIsMobileMenuOpen(true)}

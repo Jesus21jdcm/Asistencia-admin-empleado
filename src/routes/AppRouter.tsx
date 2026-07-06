@@ -15,6 +15,7 @@ import { EmployeesPage } from '../pages/employees/EmployeesPage';
 import { AttendancePage } from '../pages/attendance/AttendancePage';
 import { EmployeePage } from '../pages/employee/EmployeePage';
 import { LeavesPage } from '../pages/leaves/LeavesPage';
+import { LandingPage } from '../pages/landing/LandingPage';
 
 // Placeholder Pages for routing
 const PlaceholderPage = ({ title }: { title: string }) => (
@@ -30,6 +31,7 @@ export const AppRouter: React.FC = () => {
         <Routes>
           {/* Public Routes */}
           <Route element={<PublicRoute />}>
+            <Route path="/" element={<LandingPage />} />
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<LoginPage />} />
             </Route>
@@ -52,9 +54,8 @@ export const AppRouter: React.FC = () => {
             <Route path="/employee" element={<EmployeePage />} />
           </Route>
 
-          {/* Redirects */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

@@ -49,20 +49,20 @@ export const authService = {
   },
 
   register: async (
-    email: string, 
-    password: string, 
-    firstName: string, 
-    lastName: string, 
-    documentId: string, 
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    documentId: string,
     role: 'admin' | 'employee'
   ): Promise<void> => {
     const { createUserWithEmailAndPassword } = await import('firebase/auth');
     const { setDoc } = await import('firebase/firestore');
-    
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      
+
       const displayName = `${firstName} ${lastName}`.trim();
 
       await setDoc(doc(db, 'usuarios', user.uid), {
@@ -75,7 +75,7 @@ export const authService = {
         status: role === 'employee' ? 'pendiente' : 'activo',
         createdAt: new Date().toISOString(),
       });
-      
+
       // After registering, logout so the user can login properly if needed,
       // or we just leave them logged in if that was the intent. 
       // But we just return for now.
@@ -91,6 +91,16 @@ export const authService = {
       await signOut(auth);
     } catch (error) {
       console.error("Error during logout:", error);
+      throw error;
+    }
+  },
+
+  resetPassword: async (email: string): Promise<void> => {
+    const { sendPasswordResetEmail } = await import('firebase/auth');
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+      console.error("Error sending password reset email:", error);
       throw error;
     }
   }

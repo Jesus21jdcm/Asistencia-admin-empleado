@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { attendanceService } from '../../services/attendanceService';
 import { employeeService } from '../../services/employeeService';
@@ -6,16 +6,40 @@ import { CheckCircle, XCircle, FileText, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { LeaveRequest, Employee } from '../../types/models';
+import type { LeaveRequest, User } from '../../types/models';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 
 export const LeavesPage = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterType, setFilterType] = useState<string>('all');
 
   const { data: leaves = [], isLoading: isLoadingLeaves } = useQuery({
     queryKey: ['leaves'],
     queryFn: attendanceService.getAllLeaveRequests,
   });
+
+  useEffect(() => {
+    const q = query(collection(db, 'justificaciones'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const results = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as LeaveRequest[];
+      
+      const sortedResults = results.sort((a, b) => {
+        const dateA = a.startDate || (a as any).date;
+        const dateB = b.startDate || (b as any).date;
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      });
+
+      queryClient.setQueryData(['leaves'], sortedResults);
+    });
+
+    return () => unsubscribe();
+  }, [queryClient]);
 
   const { data: employees = [], isLoading: isLoadingEmployees } = useQuery({
     queryKey: ['employees', 'all'],
@@ -45,7 +69,14 @@ export const LeavesPage = () => {
 
   const filteredLeaves = leaves.filter(leave => {
     const employeeName = getEmployeeName(leave.userId).toLowerCase();
-    return employeeName.includes(searchTerm.toLowerCase());
+    const matchesSearch = employeeName.includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || leave.status === filterStatus;
+    
+    // Si el type no existe, asumimos que es 'leave' (permiso por defecto)
+    const leaveType = leave.type || 'leave';
+    const matchesType = filterType === 'all' || leaveType === filterType;
+
+    return matchesSearch && matchesStatus && matchesType;
   });
 
   if (isLoadingLeaves || isLoadingEmployees) {
@@ -61,7 +92,7 @@ export const LeavesPage = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-wide text-slate-900 tracking-tight">Justificaciones</h2>
+          <h2 className="text-2xl font-semibold tracking-wide text-slate-900 tracking-tight">Permisos y Justificaciones</h2>
         </div>
       </div>
 
@@ -76,6 +107,29 @@ export const LeavesPage = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
+        </div>
+        
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2 outline-none cursor-pointer"
+          >
+            <option value="all">Todos los Tipos</option>
+            <option value="leave">Permisos</option>
+            <option value="tardiness">Tardanzas</option>
+          </select>
+          
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2 outline-none cursor-pointer"
+          >
+            <option value="all">Todos los Estados</option>
+            <option value="pending">Pendientes</option>
+            <option value="approved">Aprobados</option>
+            <option value="rejected">Rechazados</option>
+          </select>
         </div>
       </div>
 
@@ -115,7 +169,14 @@ export const LeavesPage = () => {
                     <span className="font-medium text-slate-900">{getEmployeeName(leave.userId)}</span>
                   </td>
                   <td className="px-6 py-4 text-slate-600 max-w-xs truncate" title={leave.reason}>
-                    {leave.reason}
+                    <div className="flex flex-col gap-1">
+                      {leave.type === 'leave' ? (
+                        <span className="w-fit text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">PERMISO</span>
+                      ) : (
+                        <span className="w-fit text-[10px] font-bold uppercase tracking-wider text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">TARDANZA</span>
+                      )}
+                      <span className="truncate">{leave.reason}</span>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     {leave.status === 'approved' && (

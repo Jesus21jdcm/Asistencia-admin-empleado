@@ -52,6 +52,7 @@ interface EnrichedRecord extends AttendanceRecord {
   delayText: string;
   isLate: boolean;
   isEarlyCheckout: boolean;
+  isLeave?: boolean;
 }
 
 export const AttendancePage = () => {
@@ -251,13 +252,13 @@ export const AttendancePage = () => {
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.checkIn || '').localeCompare(a.checkIn || ''));
   }, [records, employees, zones, shifts]);
 
-  // Filtrado de registros
+  // Filtrado de registros + Inyección de Permisos (Registros Virtuales)
   const filteredRecords = useMemo(() => {
-    return enrichedRecords.filter(record => {
+    const baseFiltered = enrichedRecords.filter(record => {
       // Filtro por Fecha
       if (filterDate && record.date !== filterDate) return false;
 
-      // Filtro por Empleado (Texto libre para nombre o cédula)
+      // Filtro por Empleado
       if (filterEmployee) {
         const s = filterEmployee.toLowerCase();
         const matchesName = record.employeeName.toLowerCase().includes(s);
@@ -274,7 +275,67 @@ export const AttendancePage = () => {
 
       return true;
     });
-  }, [enrichedRecords, filterDate, filterEmployee, filterZone, filterStatus]);
+
+    // Inyectar permisos aprobados como registros virtuales (solo si hay fecha específica filtrada)
+    if (filterDate) {
+      const approvedLeaves = allLeaves.filter(l => l.status === 'approved');
+      
+      approvedLeaves.forEach(leave => {
+        const start = leave.startDate || (leave as any).date;
+        const end = leave.endDate || (leave as any).date;
+        
+        if (start && end && filterDate >= start && filterDate <= end) {
+          const emp = employees.find(e => e.uid === leave.userId);
+          if (!emp) return;
+
+          // Respetar filtros actuales
+          if (filterEmployee) {
+            const s = filterEmployee.toLowerCase();
+            const matchesName = (emp.displayName || '').toLowerCase().includes(s);
+            const matchesId = (emp.documentId || '').toLowerCase().includes(s);
+            if (!matchesName && !matchesId) return;
+          }
+          if (filterZone && emp.zoneId !== filterZone) return;
+          if (filterStatus === 'late' || filterStatus === 'ontime') return; // Los permisos no son tardanzas
+          
+          // Verificamos que no tenga un registro real ese mismo día
+          const hasRecord = baseFiltered.some(r => r.userId === leave.userId);
+          
+          if (!hasRecord) {
+            const zone = zones.find(z => z.id === emp.zoneId);
+            baseFiltered.push({
+              id: `leave-${leave.id}-${filterDate}`,
+              userId: leave.userId,
+              zoneId: emp.zoneId || '',
+              date: filterDate,
+              checkIn: '',
+              checkOut: '',
+              checkInStatus: 'on-time',
+              checkOutStatus: 'on-time',
+              timestamp: '',
+              employeeName: emp.displayName || 'Empleado Desconocido',
+              employeeEmail: emp.email || '',
+              documentId: emp.documentId || '',
+              zoneName: zone?.name || 'No Asignada',
+              shiftName: 'Permiso',
+              shiftEntry: '',
+              shiftExit: '',
+              shiftLunch: '',
+              formattedDate: filterDate,
+              formattedCheckIn: '--:--',
+              formattedCheckOut: '--:--',
+              delayText: `PERMISO APROBADO: ${leave.reason}`,
+              isLate: false,
+              isEarlyCheckout: false,
+              isLeave: true
+            } as EnrichedRecord);
+          }
+        }
+      });
+    }
+
+    return baseFiltered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.checkIn || '').localeCompare(a.checkIn || ''));
+  }, [enrichedRecords, filterDate, filterEmployee, filterZone, filterStatus, allLeaves, employees, zones]);
 
   // Cálculos para KPIs
   const kpis = useMemo(() => {
@@ -621,6 +682,21 @@ export const AttendancePage = () => {
       header: 'Progreso del Día',
       cell: info => {
         const r = info.row.original;
+        
+        if (r.isLeave) {
+          return (
+            <div className="flex flex-col space-y-1.5 min-w-[200px]">
+              <div className="flex items-center text-sm font-semibold text-indigo-700">
+                <CheckCircle2 className="w-4 h-4 mr-1.5 text-indigo-500" />
+                Permiso Aprobado
+              </div>
+              <span className="text-xs text-slate-500 line-clamp-2" title={r.delayText.replace('PERMISO APROBADO: ', '')}>
+                {r.delayText.replace('PERMISO APROBADO: ', '')}
+              </span>
+            </div>
+          );
+        }
+
         return (
           <div className="flex flex-col space-y-1.5 min-w-[200px]">
             {/* Entrada */}
@@ -657,6 +733,17 @@ export const AttendancePage = () => {
       header: 'Estado',
       cell: info => {
         const r = info.row.original;
+
+        if (r.isLeave) {
+          return (
+            <div className="flex flex-col gap-1">
+              <span className="inline-flex items-center w-max text-xs font-semibold px-2.5 py-1 rounded-lg border bg-indigo-50 text-indigo-700 border-indigo-200">
+                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-indigo-500" />
+                Permiso
+              </span>
+            </div>
+          );
+        }
 
         return (
           <div className="flex flex-col gap-1">
@@ -714,7 +801,7 @@ export const AttendancePage = () => {
   const isLoading = isLoadingRecords || isLoadingEmployees || isLoadingZones || isLoadingShifts;
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out h-full flex flex-col">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out flex flex-col min-h-[calc(100vh-10rem)]">
       {/* Header & Export */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -866,7 +953,7 @@ export const AttendancePage = () => {
       </div>
 
       {/* Table Content */}
-      <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col w-full">
+      <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col w-full min-h-[500px]">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-sm text-left min-w-[800px] table-gradient-rows">
             <thead className="bg-white text-slate-700/80 font-semibold">

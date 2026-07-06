@@ -55,4 +55,5 @@ export interface LeaveRequest {
   status: 'pending' | 'approved' | 'rejected';
   startDate: string; // ISO date string (YYYY-MM-DD)
   endDate: string; // ISO date string (YYYY-MM-DD)
+  type?: 'tardiness' | 'leave'; // 'tardiness' para justificar llegada tarde, 'leave' para permisos manuales
 }

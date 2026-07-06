@@ -29,6 +29,8 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
 
   const {
     register: registerLogin,
@@ -53,12 +55,31 @@ export const LoginPage: React.FC = () => {
       await authService.login(data.email, data.password);
       toast.success('Sesión iniciada correctamente');
       navigate('/dashboard', { replace: true });
-    } catch (error: unknown) {
+    } catch (error: any) {
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         toast.error('Las credenciales no son correctas o no están registradas.');
       } else {
         toast.error('Ocurrió un error al intentar iniciar sesión.');
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!resetEmail) {
+      toast.error('Por favor ingresa tu correo electrónico primero para restablecer la contraseña.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await authService.resetPassword(resetEmail);
+      toast.success('Te hemos enviado un correo con las instrucciones para restablecer tu contraseña.');
+      setIsForgotPassword(false);
+      setResetEmail('');
+    } catch (error: unknown) {
+      toast.error('Ocurrió un error al intentar enviar el correo. Verifica que la dirección sea correcta.');
     } finally {
       setIsLoading(false);
     }
@@ -71,8 +92,12 @@ export const LoginPage: React.FC = () => {
       toast.success('Cuenta creada exitosamente. Espera la validación del administrador.');
       setIsLogin(true);
       resetSignup();
-    } catch (error: unknown) {
-      toast.error(error.message || 'Error al crear la cuenta');
+    } catch (error: any) {
+      if (error.code === 'auth/email-already-in-use') {
+        toast.error('Este correo ya está registrado.');
+      } else {
+        toast.error(error.message || 'Error al crear la cuenta');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -86,19 +111,53 @@ export const LoginPage: React.FC = () => {
 
       <div className="relative">
         <div className="mb-8 text-center flex flex-col items-center">
-          <div className="flex items-center gap-3 mb-6">
-            <img src="/logo.png" alt="GeoAsistencia" className="h-20 w-auto" />
-            <span className="text-primary-800 font-bold text-3xl tracking-[0.15em]">GEOASISTO</span>
+          <div className="flex items-center justify-center mb-6 w-full">
+            <img src="/logo_blue.png" alt="GeoAsistencia" className="h-24 sm:h-32 w-auto object-contain" />
           </div>
           <h2 className="text-2xl font-semibold tracking-wide text-slate-900 tracking-tight">
-            {isLogin ? 'Acceso al Sistema' : 'Registro de Empleado'}
+            {isForgotPassword ? 'Recuperar Contraseña' : isLogin ? 'Acceso al Sistema' : 'Registro de Empleado'}
           </h2>
           <p className="text-sm text-slate-500 mt-2">
-            {isLogin ? 'Ingresa tus credenciales para continuar' : 'Crea tu cuenta para registrar asistencia'}
+            {isForgotPassword ? 'Ingresa tu correo para recibir un enlace de recuperación' : isLogin ? 'Ingresa tus credenciales para continuar' : 'Crea tu cuenta para registrar asistencia'}
           </p>
         </div>
 
-        {isLogin ? (
+        {isForgotPassword ? (
+          <form onSubmit={handleForgotPassword} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="email-reset">
+                Correo Electrónico
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-slate-400" />
+                </div>
+                <input
+                  id="email-reset"
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="correo@correo.com"
+                  className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-none text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white"
+                  required
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full flex justify-center items-center py-2.5 px-4 text-sm font-semibold disabled:opacity-70 disabled:cursor-not-allowed mt-2 bg-[#0A4174] text-white rounded-none btn-angled shadow-sm hover:brightness-110 active:scale-95 transition-all duration-200"
+            >
+              <span className={`flex items-center ${isLoading ? '' : 'hidden'}`}>
+                <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                Enviando...
+              </span>
+              <span className={isLoading ? 'hidden' : ''}>
+                Enviar Enlace
+              </span>
+            </button>
+          </form>
+        ) : isLogin ? (
           <form onSubmit={handleSubmitLogin(onLoginSubmit)} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="email-login">
@@ -111,7 +170,8 @@ export const LoginPage: React.FC = () => {
                 <input
                   id="email-login"
                   type="email"
-                  placeholder="ejemplo@empresa.com"
+                  autoComplete="off"
+                  placeholder="correo@correo.com"
                   className={`block w-full pl-10 pr-3 py-2.5 border ${errorsLogin.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
                     } rounded-none text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white`}
                   {...registerLogin('email')}
@@ -121,9 +181,18 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="password-login">
-                Contraseña
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-slate-700" htmlFor="password-login">
+                  Contraseña
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsForgotPassword(true)}
+                  className="text-xs text-primary-600 hover:text-primary-700 font-medium transition-colors"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-slate-400" />
@@ -209,6 +278,13 @@ export const LoginPage: React.FC = () => {
                 <input
                   id="documentId-signup"
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  onKeyPress={(e) => {
+                    if (!/[0-9]/.test(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
                   placeholder="12345678"
                   className={`block w-full pl-10 pr-3 py-2.5 border ${errorsSignup.documentId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
                     } rounded-none text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white`}
@@ -229,7 +305,8 @@ export const LoginPage: React.FC = () => {
                 <input
                   id="email-signup"
                   type="email"
-                  placeholder="ejemplo@empresa.com"
+                  autoComplete="off"
+                  placeholder="correo@correo.com"
                   className={`block w-full pl-10 pr-3 py-2.5 border ${errorsSignup.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
                     } rounded-none text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white`}
                   {...registerSignup('email')}
@@ -275,13 +352,23 @@ export const LoginPage: React.FC = () => {
         )}
 
         <div className="mt-6 text-center">
-          <button
-            type="button"
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-sm font-medium text-primary-600 hover:text-primary-500 transition-colors"
-          >
-            {isLogin ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia Sesión'}
-          </button>
+          {isForgotPassword ? (
+            <button
+              type="button"
+              onClick={() => setIsForgotPassword(false)}
+              className="text-sm font-medium text-primary-600 hover:text-primary-500 transition-colors"
+            >
+              Volver al inicio de sesión
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-sm font-medium text-primary-600 hover:text-primary-500 transition-colors"
+            >
+              {isLogin ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia Sesión'}
+            </button>
+          )}
         </div>
       </div>
     </div>

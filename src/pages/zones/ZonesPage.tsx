@@ -110,6 +110,9 @@ export const ZonesPage = () => {
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
+  
+  const [isCapturingGps, setIsCapturingGps] = useState(false);
+  const [gpsError, setGpsError] = useState('');
 
   // Fetch zones
   const { data: zones = [], isLoading } = useQuery({
@@ -219,6 +222,54 @@ export const ZonesPage = () => {
 
   const handleClearMap = () => {
     setCurrentPoints([]);
+    setGpsError('');
+  };
+
+  const handleCaptureCurrentLocation = () => {
+    if (currentPoints.length >= 4) {
+      toast.info('Ya has capturado los 4 puntos. Usa Limpiar Polígono para reiniciar.');
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setGpsError('Tu navegador no soporta GPS.');
+      toast.error('Tu navegador no soporta GPS.');
+      return;
+    }
+
+    setIsCapturingGps(true);
+    setGpsError('');
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setIsCapturingGps(false);
+        const { latitude, longitude, accuracy } = position.coords;
+        if (accuracy > 50) {
+          toast.warning(`Precisión baja (${Math.round(accuracy)}m). Intenta salir al aire libre o acercarte a una ventana.`);
+        }
+        
+        const newPoint = { lat: latitude, lng: longitude };
+        
+        // We need to use the functional update to be safe, but since we are reading currentPoints length above, we can just use the state.
+        // Let's use functional update to be 100% sure we append correctly.
+        setCurrentPoints(prev => {
+          if (prev.length >= 4) return prev;
+          return [...prev, newPoint];
+        });
+        
+        if (mapInstance) {
+          mapInstance.setView([latitude, longitude], 19);
+        }
+        
+        toast.success(`Punto capturado con éxito.`);
+      },
+      (error) => {
+        setIsCapturingGps(false);
+        setGpsError(error.message);
+        toast.error(`Error al obtener ubicación: ${error.message}`);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
   };
 
   // Table setup
@@ -341,10 +392,10 @@ export const ZonesPage = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit as any)} className="p-6 flex flex-col flex-1 overflow-hidden">
-              <div className="flex flex-col md:flex-row gap-6 h-full">
+            <form onSubmit={handleSubmit(onSubmit as any)} className="p-4 md:p-6 flex flex-col flex-1 overflow-y-auto">
+              <div className="flex flex-col md:flex-row gap-6 h-full md:overflow-hidden">
                 {/* Panel Izquierdo: Formulario */}
-                <div className="w-full md:w-1/3 space-y-4">
+                <div className="w-full md:w-1/3 space-y-4 md:overflow-y-auto sidebar-scrollbar md:pr-2 shrink-0 md:shrink">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Nombre de la Sede</label>
                     <input
@@ -410,18 +461,59 @@ export const ZonesPage = () => {
                   </div>
 
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm">
-                    <p className="font-semibold text-slate-700 mb-2">Instrucciones:</p>
-                    <p className="text-slate-600 mb-2">Haz clic en el mapa para marcar exactamente 4 puntos que formarán la oficina perimetral (geocerca).</p>
-                    <p className="text-indigo-600 font-medium">Puntos marcados: {currentPoints.length} / 4</p>
-                    {errors.polygon && <p className="mt-2 text-xs text-red-500 font-bold">{errors.polygon.message}</p>}
-
+                    <h4 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-primary-600" />
+                      Captura de Geocerca (Modo Caminata)
+                    </h4>
+                    <p className="text-slate-600 mb-3 text-xs leading-relaxed">
+                      Párate en una esquina de la oficina y presiona el botón para registrar la coordenada usando el GPS de este dispositivo. Camina a la siguiente esquina y repite hasta completar las 4 esquinas.
+                    </p>
+                    
+                    <div className="bg-white p-3 rounded-lg border border-slate-200 mb-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs font-semibold text-slate-500 uppercase">Progreso</span>
+                        <span className="text-sm font-bold text-primary-700">{currentPoints.length} / 4 Puntos</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="bg-primary-500 h-2 rounded-full transition-all duration-300" 
+                          style={{ width: `${(currentPoints.length / 4) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    
                     <button
                       type="button"
-                      onClick={handleClearMap}
-                      className="mt-4 w-full flex items-center justify-center px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-none btn-angled hover:bg-slate-100 transition-colors text-xs font-semibold"
+                      onClick={handleCaptureCurrentLocation}
+                      disabled={isCapturingGps || currentPoints.length >= 4}
+                      className="w-full flex items-center justify-center px-4 py-3 bg-primary-600 text-white rounded-lg shadow-sm hover:bg-primary-700 hover:shadow-md transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden"
                     >
-                      <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Limpiar Polígono
+                      {isCapturingGps ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          <span className="text-sm">Obteniendo coordenadas...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Navigation className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
+                          <span className="text-sm">📍 Guardar mi posición actual</span>
+                        </>
+                      )}
                     </button>
+                    {gpsError && <p className="mt-2 text-xs text-red-500 text-center font-medium">{gpsError}</p>}
+
+                    {errors.polygon && <p className="mt-3 text-xs text-red-500 font-bold bg-red-50 p-2 rounded-lg border border-red-100">{errors.polygon.message}</p>}
+
+                    <div className="mt-4 pt-3 border-t border-slate-200">
+                      <p className="text-xs text-slate-500 mb-2 text-center">O también puedes hacer clic manualmente en el mapa de la derecha.</p>
+                      <button
+                        type="button"
+                        onClick={handleClearMap}
+                        className="w-full flex items-center justify-center px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors text-xs font-semibold"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Limpiar Puntos
+                      </button>
+                    </div>
                   </div>
 
                   <div className="pt-4 flex flex-col gap-3 mt-auto">
@@ -450,7 +542,7 @@ export const ZonesPage = () => {
                 </div>
 
                 {/* Panel Derecho: Mapa */}
-                <div className="w-full md:w-2/3 h-64 md:h-[500px] rounded-2xl overflow-hidden border border-slate-200 relative">
+                <div className="w-full md:w-2/3 h-80 md:h-full min-h-[300px] rounded-2xl overflow-hidden border border-slate-200 relative shrink-0">
                   <MapContainer
                     center={currentPoints.length > 0 ? [currentPoints[0].lat, currentPoints[0].lng] : [8.6226, -70.2075]} // Default Barinas
                     zoom={15}
