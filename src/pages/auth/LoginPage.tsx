@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { authService } from '../../services/authService';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, Loader2, ShieldCheck, User, CreditCard } from 'lucide-react';
+import { Lock, Mail, Loader2, ShieldCheck, User, CreditCard, Compass, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 
 const loginSchema = z.object({
@@ -53,7 +53,7 @@ export const LoginPage: React.FC = () => {
       await authService.login(data.email, data.password);
       toast.success('Sesión iniciada correctamente');
       navigate('/dashboard', { replace: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         toast.error('Las credenciales no son correctas o no están registradas.');
       } else {
@@ -71,7 +71,7 @@ export const LoginPage: React.FC = () => {
       toast.success('Cuenta creada exitosamente. Espera la validación del administrador.');
       setIsLogin(true);
       resetSignup();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(error.message || 'Error al crear la cuenta');
     } finally {
       setIsLoading(false);
@@ -79,17 +79,18 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="bg-white py-10 px-6 shadow-2xl shadow-primary-900/5 sm:rounded-3xl sm:px-12 border border-slate-100/60 backdrop-blur-xl relative overflow-hidden w-full max-w-md">
+    <div className="bg-white py-10 px-6 shadow-2xl shadow-primary-900/5 sm:rounded-none sm:px-12 border border-[#6EA2B3]/30 relative overflow-hidden w-full max-w-md border-t-4 border-t-primary-800">
       {/* Decoraciones de fondo */}
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary-500/10 rounded-full blur-3xl"></div>
       <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl"></div>
 
       <div className="relative">
         <div className="mb-8 text-center flex flex-col items-center">
-          <div className="w-12 h-12 bg-primary-50 rounded-2xl flex items-center justify-center mb-4 border border-primary-100 shadow-inner">
-            <ShieldCheck className="w-6 h-6 text-primary-600" />
+          <div className="flex items-center gap-3 mb-6">
+            <img src="/logo.png" alt="GeoAsistencia" className="h-20 w-auto" />
+            <span className="text-primary-800 font-bold text-3xl tracking-[0.15em]">GEOASISTO</span>
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+          <h2 className="text-2xl font-semibold tracking-wide text-slate-900 tracking-tight">
             {isLogin ? 'Acceso al Sistema' : 'Registro de Empleado'}
           </h2>
           <p className="text-sm text-slate-500 mt-2">
@@ -111,9 +112,8 @@ export const LoginPage: React.FC = () => {
                   id="email-login"
                   type="email"
                   placeholder="ejemplo@empresa.com"
-                  className={`block w-full pl-10 pr-3 py-2.5 border ${
-                    errorsLogin.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
-                  } rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors bg-slate-50/50 hover:bg-white`}
+                  className={`block w-full pl-10 pr-3 py-2.5 border ${errorsLogin.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
+                    } rounded-none text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white`}
                   {...registerLogin('email')}
                 />
               </div>
@@ -132,9 +132,8 @@ export const LoginPage: React.FC = () => {
                   id="password-login"
                   type="password"
                   placeholder="••••••••"
-                  className={`block w-full pl-10 pr-3 py-2.5 border ${
-                    errorsLogin.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
-                  } rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors bg-slate-50/50 hover:bg-white`}
+                  className={`block w-full pl-10 pr-3 py-2.5 border ${errorsLogin.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
+                    } rounded-none text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white`}
                   {...registerLogin('password')}
                 />
               </div>
@@ -144,7 +143,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-xl shadow-sm shadow-primary-500/30 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 mt-2"
+              className="w-full flex justify-center items-center py-2.5 px-4 text-sm font-semibold disabled:opacity-70 disabled:cursor-not-allowed mt-2 bg-[#0A4174] text-white rounded-none btn-angled shadow-sm hover:brightness-110 active:scale-95 transition-all duration-200"
             >
               <span className={`flex items-center ${isLoading ? '' : 'hidden'}`}>
                 <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
@@ -170,9 +169,8 @@ export const LoginPage: React.FC = () => {
                     id="firstName-signup"
                     type="text"
                     placeholder="Juan Carlos"
-                    className={`block w-full pl-10 pr-3 py-2.5 border ${
-                      errorsSignup.firstName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
-                    } rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors bg-slate-50/50 hover:bg-white`}
+                    className={`block w-full pl-10 pr-3 py-2.5 border ${errorsSignup.firstName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
+                      } rounded-none text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white`}
                     {...registerSignup('firstName')}
                   />
                 </div>
@@ -191,9 +189,8 @@ export const LoginPage: React.FC = () => {
                     id="lastName-signup"
                     type="text"
                     placeholder="Pérez Gómez"
-                    className={`block w-full pl-10 pr-3 py-2.5 border ${
-                      errorsSignup.lastName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
-                    } rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors bg-slate-50/50 hover:bg-white`}
+                    className={`block w-full pl-10 pr-3 py-2.5 border ${errorsSignup.lastName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
+                      } rounded-none text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white`}
                     {...registerSignup('lastName')}
                   />
                 </div>
@@ -213,9 +210,8 @@ export const LoginPage: React.FC = () => {
                   id="documentId-signup"
                   type="text"
                   placeholder="12345678"
-                  className={`block w-full pl-10 pr-3 py-2.5 border ${
-                    errorsSignup.documentId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
-                  } rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors bg-slate-50/50 hover:bg-white`}
+                  className={`block w-full pl-10 pr-3 py-2.5 border ${errorsSignup.documentId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
+                    } rounded-none text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white`}
                   {...registerSignup('documentId')}
                 />
               </div>
@@ -234,9 +230,8 @@ export const LoginPage: React.FC = () => {
                   id="email-signup"
                   type="email"
                   placeholder="ejemplo@empresa.com"
-                  className={`block w-full pl-10 pr-3 py-2.5 border ${
-                    errorsSignup.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
-                  } rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors bg-slate-50/50 hover:bg-white`}
+                  className={`block w-full pl-10 pr-3 py-2.5 border ${errorsSignup.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
+                    } rounded-none text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white`}
                   {...registerSignup('email')}
                 />
               </div>
@@ -255,9 +250,8 @@ export const LoginPage: React.FC = () => {
                   id="password-signup"
                   type="password"
                   placeholder="••••••••"
-                  className={`block w-full pl-10 pr-3 py-2.5 border ${
-                    errorsSignup.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
-                  } rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors bg-slate-50/50 hover:bg-white`}
+                  className={`block w-full pl-10 pr-3 py-2.5 border ${errorsSignup.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-slate-200 focus:ring-primary-500 focus:border-primary-500'
+                    } rounded-none text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white`}
                   {...registerSignup('password')}
                 />
               </div>
@@ -267,7 +261,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-xl shadow-sm shadow-primary-500/30 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 mt-2"
+              className="w-full flex justify-center items-center py-2.5 px-4 text-sm font-semibold disabled:opacity-70 disabled:cursor-not-allowed mt-2 bg-[#0A4174] text-white rounded-none btn-angled shadow-sm hover:brightness-110 active:scale-95 transition-all duration-200"
             >
               <span className={`flex items-center ${isLoading ? '' : 'hidden'}`}>
                 <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />

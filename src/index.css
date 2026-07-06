@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700&display=swap');
 
 @theme {
   --color-primary-50: #eef2ff;
@@ -6,13 +7,13 @@
   --color-primary-200: #c7d2fe;
   --color-primary-300: #a5b4fc;
   --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
-  --color-primary-950: #1e1b4b;
-  --font-sans: "Inter", system-ui, sans-serif;
+  --color-primary-500: #0A4174;
+  --color-primary-600: #0A4174;
+  --color-primary-700: #4E8EA2;
+  --color-primary-800: #001D39;
+  --color-primary-900: #001D39;
+  --color-primary-950: #001224;
+  --font-sans: "Urbanist", system-ui, sans-serif;
 }
 
 @layer base {
@@ -20,4 +21,37 @@
     @apply bg-slate-50 text-slate-900 antialiased selection:bg-primary-100 selection:text-primary-700;
   }
 }
-@layer utilities { .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; } }
+@layer utilities { 
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; } 
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } 
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; } 
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; } 
+
+  .sidebar-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; } 
+  .sidebar-scrollbar::-webkit-scrollbar-track { background: transparent; } 
+  .sidebar-scrollbar::-webkit-scrollbar-thumb { background: transparent; border-radius: 9999px; transition: background 0.3s ease; } 
+  .sidebar-scrollbar:hover::-webkit-scrollbar-thumb { background: #7BBDE8; } 
+  .sidebar-scrollbar::-webkit-scrollbar-thumb:hover { background: #BDD8E9; }
+
+  /* Tablas Alternadas y Gradientes */
+  .table-gradient-rows tbody tr:nth-child(even) {
+    background: linear-gradient(to right, rgba(189, 216, 233, 0.2), #ffffff);
+  }
+  .table-gradient-rows tbody tr {
+    border-bottom: 1px solid rgba(110, 162, 179, 0.3);
+  }
+  .table-gradient-rows th {
+    border-bottom: 2px solid rgba(110, 162, 179, 0.5);
+  }
+
+  /* Botón Angulado (Corte a la Izquierda) */
+  .btn-angled {
+    clip-path: polygon(12px 0, 100% 0, 100% 100%, 0 100%);
+    border-radius: 0;
+  }
+  /* Ajuste para íconos u otros botones simétricos si se requiere (corte en ambos lados) */
+  .btn-angled-both {
+    clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+    border-radius: 0;
+  }
+}

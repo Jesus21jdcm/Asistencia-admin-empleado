@@ -25,6 +25,18 @@ export const employeeService = {
     })) as Employee[];
   },
 
+  getAllEmployees: async (): Promise<Employee[]> => {
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where('role', '==', 'employee')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      uid: doc.id,
+      ...doc.data()
+    })) as Employee[];
+  },
+
   getActiveEmployees: async (): Promise<Employee[]> => {
     const q = query(
       collection(db, COLLECTION_NAME),
@@ -40,7 +52,7 @@ export const employeeService = {
 
   approveEmployee: async (uid: string, zoneId: string, shiftId?: string): Promise<void> => {
     const docRef = doc(db, COLLECTION_NAME, uid);
-    const data: any = {
+    const data: unknown = {
       status: 'activo',
       zoneId: zoneId
     };
@@ -51,10 +63,23 @@ export const employeeService = {
 
   updateEmployeeZoneAndShift: async (uid: string, zoneId: string, shiftId: string): Promise<void> => {
     const docRef = doc(db, COLLECTION_NAME, uid);
-    const data: any = {};
+    const data: Record<string, unknown> = {};
     if (zoneId) data.zoneId = zoneId;
     if (shiftId !== undefined) data.shiftId = shiftId; // could be empty to remove shift
     await updateDoc(docRef, data);
+  },
+
+  updateEmployeeLunchTime: async (uid: string, customLunchStartTime?: string | null, customLunchEndTime?: string | null): Promise<void> => {
+    const docRef = doc(db, COLLECTION_NAME, uid);
+    const data: Record<string, unknown> = {};
+    if (customLunchStartTime !== undefined) data.customLunchStartTime = customLunchStartTime;
+    if (customLunchEndTime !== undefined) data.customLunchEndTime = customLunchEndTime;
+    await updateDoc(docRef, data);
+  },
+
+  updateEmployeeProfile: async (uid: string, data: Partial<Employee>): Promise<void> => {
+    const docRef = doc(db, COLLECTION_NAME, uid);
+    await updateDoc(docRef, data as { [x: string]: any });
   },
 
   rejectEmployee: async (uid: string): Promise<void> => {

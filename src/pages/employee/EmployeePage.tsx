@@ -4,7 +4,7 @@ import { authService } from '../../services/authService';
 import { zoneService } from '../../services/zoneService';
 import { shiftService } from '../../services/shiftService';
 import { attendanceService } from '../../services/attendanceService';
-import { LogOut, MapPin, Loader2, CheckCircle2, Clock, AlertCircle, FileText, X, Building, CalendarRange } from 'lucide-react';
+import { LogOut, Loader2, CheckCircle2, Clock, AlertCircle, FileText, X, Navigation, CalendarRange, Fingerprint } from 'lucide-react';
 import { toast } from 'sonner';
 import { isPointInPolygon, getCenterOfBounds, getDistance } from 'geolib';
 import type { Zone, AttendanceRecord, LeaveRequest, Shift } from '../../types/models';
@@ -25,6 +25,7 @@ export const EmployeePage: React.FC = () => {
   const [showJustifyModal, setShowJustifyModal] = useState(false);
   const [justifyReason, setJustifyReason] = useState('');
   const [justifyDate, setJustifyDate] = useState('');
+  const [justifyEndDate, setJustifyEndDate] = useState('');
   const [isSubmittingJustification, setIsSubmittingJustification] = useState(false);
 
   const loadData = async () => {
@@ -33,8 +34,8 @@ export const EmployeePage: React.FC = () => {
       try {
         const fetchedZones = await zoneService.getZones();
         setZones(fetchedZones);
-      } catch (zoneError: any) {
-        toast.error(`Error de permisos Firebase al cargar sedes: ${zoneError.message}`, { id: 'zone-error' });
+      } catch (zoneError: unknown) {
+        toast.error(`Error de permisos Firebase al cargar sedes: ${(zoneError as Error).message}`, { id: 'zone-error' });
       }
 
       try {
@@ -69,12 +70,15 @@ export const EmployeePage: React.FC = () => {
   };
 
   useEffect(() => {
+// eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
+// eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleLogout = async () => {
     try {
       await authService.logout();
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       toast.error('Error al cerrar sesión', { id: 'logout-error' });
     }
@@ -134,7 +138,8 @@ export const EmployeePage: React.FC = () => {
               if (entryLimit) {
                 const [hours, minutes] = entryLimit.split(':').map(Number);
                 const limitTime = new Date();
-                limitTime.setHours(hours, minutes, 0, 0);
+                const tolerance = shift?.entryTolerance || matchedZone.entryTolerance || 0;
+                limitTime.setHours(hours, minutes + tolerance, 0, 0);
                 if (now > limitTime) isLate = true;
               } else {
                 isLate = now.getHours() >= 9 && now.getMinutes() > 0;
@@ -214,12 +219,14 @@ export const EmployeePage: React.FC = () => {
         userId: user?.uid || '',
         reason: justifyReason,
         status: 'pending',
-        date: justifyDate
+        startDate: justifyDate,
+        endDate: justifyEndDate || justifyDate
       });
       toast.success('Justificación enviada correctamente', { id: 'justify-success' });
       setShowJustifyModal(false);
       setJustifyReason('');
       setJustifyDate('');
+      setJustifyEndDate('');
       loadData(); // Recargar la lista de justificaciones
     } catch {
       toast.error('Error al enviar la justificación', { id: 'justify-error' });
@@ -243,19 +250,19 @@ export const EmployeePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header Empleado */}
-      <header className="bg-white px-6 py-4 border-b border-slate-200 flex items-center justify-between shadow-sm sticky top-0 z-10">
+      <header className="bg-primary-800 px-6 py-4 flex items-center justify-between shadow-md sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold">
+          <div className="w-10 h-10 rounded-full bg-primary-700 border-2 border-white/20 flex items-center justify-center text-white font-bold">
             {user?.displayName?.charAt(0).toUpperCase() || 'E'}
           </div>
           <div>
-            <h1 className="font-semibold text-slate-900 leading-tight">{user?.displayName || 'Empleado'}</h1>
-            <p className="text-xs text-slate-500">Panel de Asistencia</p>
+            <h1 className="font-semibold text-white leading-tight">{user?.displayName || 'Empleado'}</h1>
+            <p className="text-xs text-white/80">Panel de Asistencia</p>
           </div>
         </div>
         <button 
           onClick={handleLogout}
-          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+          className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
         >
           <LogOut className="w-5 h-5" />
         </button>
@@ -265,13 +272,13 @@ export const EmployeePage: React.FC = () => {
       <main className="flex-1 p-6 max-w-4xl mx-auto w-full space-y-6 pb-20">
         
         {/* Información de Sede Asignada */}
-        <section className="bg-gradient-to-br from-indigo-50 to-white rounded-3xl shadow-sm border border-indigo-100 p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        <section className="bg-white rounded-none shadow-sm border border-[#6EA2B3]/30 border-t-4 border-t-primary-800 p-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 text-left w-full">
-            <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 shrink-0">
-              <Building className="w-6 h-6" />
+            <div className="w-12 h-12 bg-primary-100 rounded-2xl flex items-center justify-center text-primary-700 shrink-0">
+              <Navigation className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">Tu Sede y Horario Asignado</h3>
+              <h3 className="text-xs font-bold text-primary-700 uppercase tracking-wider mb-1">Tu Sede y Horario Asignado</h3>
               <p className="text-lg font-bold text-slate-900 leading-tight">
                 {user?.zoneId ? (zones.find(z => z.id === user.zoneId)?.name || 'Cargando sede...') : 'Sin sede asignada'}
               </p>
@@ -279,14 +286,14 @@ export const EmployeePage: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-slate-600 font-medium">
                   {shift ? (
                     <>
-                      <span className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 shadow-sm text-indigo-700">
-                        <CalendarRange className="w-3.5 h-3.5 text-indigo-500" />
+                      <span className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-primary-200 shadow-sm text-primary-700">
+                        <CalendarRange className="w-3.5 h-3.5 text-primary-500" />
                         {shift.name} ({shift.entryTime} - {shift.exitTime})
                       </span>
-                      {shift.lunchStartTime && shift.lunchEndTime && (
+                      {(user?.customLunchStartTime || shift.lunchStartTime) && (user?.customLunchEndTime || shift.lunchEndTime) && (
                         <span className="flex items-center gap-1.5 bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200 shadow-sm text-orange-700">
                           <Clock className="w-3.5 h-3.5 text-orange-500" />
-                          Almuerzo: {shift.lunchStartTime} a {shift.lunchEndTime}
+                          Almuerzo: {user?.customLunchStartTime || shift.lunchStartTime} a {user?.customLunchEndTime || shift.lunchEndTime}
                         </span>
                       )}
                     </>
@@ -314,12 +321,12 @@ export const EmployeePage: React.FC = () => {
         </section>
 
         {/* Acción Principal */}
-        <section className="bg-white w-full rounded-3xl shadow-md border border-slate-100 p-8 flex flex-col md:flex-row items-center gap-6 justify-between relative overflow-hidden">
+        <section className="bg-white w-full rounded-none shadow-sm border border-[#6EA2B3]/30 border-t-4 border-t-[#0A4174] p-8 flex flex-col md:flex-row items-center gap-6 justify-between relative overflow-hidden">
           <div className="absolute -top-16 -right-16 w-32 h-32 bg-primary-500/10 rounded-full blur-2xl pointer-events-none"></div>
           
           <div className="flex items-center gap-4 text-left">
-            <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center border-4 border-indigo-100 shrink-0">
-              <MapPin className="w-8 h-8 text-indigo-600" />
+            <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center border-4 border-primary-100 shrink-0">
+              <Fingerprint className="w-8 h-8 text-primary-600" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-900">Registrar Asistencia</h2>
@@ -334,7 +341,7 @@ export const EmployeePage: React.FC = () => {
             disabled={isCheckingIn || !!(todayRecord && todayRecord.checkOut)}
             className="w-full md:w-auto shrink-0 relative group"
           >
-            <div className={`absolute -inset-1 rounded-2xl blur transition duration-200 ${
+            <div className={`absolute -inset-1 rounded-none blur transition duration-200 ${
               todayRecord && todayRecord.checkOut 
                 ? 'opacity-0' 
                 : 'opacity-25 group-hover:opacity-50'
@@ -342,15 +349,15 @@ export const EmployeePage: React.FC = () => {
               todayRecord && todayRecord.checkOut 
                 ? 'bg-slate-400'
                 : todayRecord 
-                  ? 'bg-gradient-to-r from-orange-500 to-red-500' 
+                  ? 'bg-gradient-to-r from-[#4E8EA2] to-[#0A4174]' 
                   : 'bg-gradient-to-r from-emerald-500 to-emerald-600'
             }`}></div>
-            <div className={`relative flex items-center justify-center px-8 py-4 text-white rounded-2xl shadow-md transition-all active:scale-95 disabled:active:scale-100 ${
+            <div className={`relative flex items-center justify-center px-8 py-4 text-white rounded-none btn-angled shadow-md transition-all active:scale-95 disabled:active:scale-100 ${
               todayRecord && todayRecord.checkOut 
                 ? 'bg-slate-400 cursor-not-allowed opacity-90'
                 : todayRecord 
-                  ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600' 
-                  : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700'
+                  ? 'bg-[#49769F] hover:brightness-110' 
+                  : 'bg-[#0A4174] hover:brightness-110'
             }`}>
               {isCheckingIn ? (
                 <>
@@ -379,7 +386,7 @@ export const EmployeePage: React.FC = () => {
 
         {/* Historial y Justificaciones */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <section className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+          <section className="lg:col-span-2 bg-white rounded-none shadow-sm border border-[#6EA2B3]/30 border-t-4 border-t-[#49769F] overflow-hidden flex flex-col">
             <div className="p-6 border-b border-slate-100 flex items-center gap-2">
               <Clock className="w-5 h-5 text-primary-500" />
               <h2 className="text-lg font-bold text-slate-900">Mi Historial Reciente</h2>
@@ -444,7 +451,7 @@ export const EmployeePage: React.FC = () => {
             </div>
           </section>
 
-          <section className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 flex flex-col justify-start">
+          <section className="bg-white rounded-none shadow-sm border border-[#6EA2B3]/30 border-t-4 border-t-[#49769F] p-6 flex flex-col justify-start">
             <div className="flex items-center gap-2 mb-4">
               <AlertCircle className="w-5 h-5 text-amber-500" />
               <h2 className="text-lg font-bold text-slate-900">Mis Justificaciones</h2>
@@ -461,8 +468,13 @@ export const EmployeePage: React.FC = () => {
                   {justifications.map(req => (
                     <li key={req.id} className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 text-sm">
                       <div className="flex justify-between items-start mb-1">
-                        <span className="font-semibold text-slate-800">
-                          {format(new Date(req.date), "dd/MM/yyyy")}
+                        <span className="font-semibold text-slate-800 text-xs">
+                          {(() => {
+                            const startD = req.startDate || (req as any).date;
+                            const endD = req.endDate || (req as any).date;
+                            if (startD === endD) return format(new Date(startD), "dd/MM/yyyy");
+                            return `Del ${format(new Date(startD), "dd/MM/yyyy")} al ${format(new Date(endD), "dd/MM/yyyy")}`;
+                          })()}
                         </span>
                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                           req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 
@@ -496,17 +508,31 @@ export const EmployeePage: React.FC = () => {
               </button>
             </div>
             <form onSubmit={handleSubmitJustification} className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Fecha de la incidencia
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={justifyDate}
-                  onChange={(e) => setJustifyDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Desde
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={justifyDate}
+                    onChange={(e) => setJustifyDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Hasta (Opcional)
+                  </label>
+                  <input
+                    type="date"
+                    value={justifyEndDate}
+                    min={justifyDate}
+                    onChange={(e) => setJustifyEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -525,14 +551,14 @@ export const EmployeePage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowJustifyModal(false)}
-                  className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-semibold hover:bg-slate-50 transition-colors text-sm"
+                  className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-none btn-angled font-semibold hover:bg-slate-50 transition-colors text-sm"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingJustification}
-                  className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-xl font-semibold hover:bg-primary-700 transition-colors text-sm flex items-center justify-center"
+                  className="flex-1 flex px-4 py-2.5 font-semibold text-sm items-center justify-center bg-[#0A4174] text-white rounded-none btn-angled shadow-sm hover:brightness-110 active:scale-95 transition-all duration-200"
                 >
                   {isSubmittingJustification ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

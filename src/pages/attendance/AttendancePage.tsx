@@ -1,16 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  useReactTable, 
-  getCoreRowModel, 
-  flexRender, 
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
   createColumnHelper,
   getPaginationRowModel
 } from '@tanstack/react-table';
-import { 
-  Loader2, 
-  MapPin, 
-  ArrowRightLeft, 
+import {
+  Loader2,
+  MapPin,
+  ArrowRightLeft,
   AlertCircle,
   FileSpreadsheet,
   ChevronLeft,
@@ -25,13 +25,17 @@ import {
   UserPlus,
   X
 } from 'lucide-react';
-import { format, parseISO, isToday, isYesterday, subDays, startOfWeek, endOfWeek } from 'date-fns';
+import { format, parseISO, subDays } from 'date-fns';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { attendanceService } from '../../services/attendanceService';
 import { employeeService } from '../../services/employeeService';
 import { zoneService } from '../../services/zoneService';
 import { shiftService } from '../../services/shiftService';
 import type { AttendanceRecord } from '../../types/models';
+import { WeeklyReport } from './WeeklyReport';
 
 interface EnrichedRecord extends AttendanceRecord {
   employeeName: string;
@@ -51,10 +55,11 @@ interface EnrichedRecord extends AttendanceRecord {
 }
 
 export const AttendancePage = () => {
+  const [activeTab, setActiveTab] = useState<'diario' | 'semanal'>('diario');
   // Filtros de UI
   const [filterDate, setFilterDate] = useState<string>(format(new Date(), 'yyyy-MM-dd')); // Hoy por defecto
   const [filterEmployee, setFilterEmployee] = useState<string>('');
-  const [filterZone, setFilterZone] = useState<string>('');
+  const [filterZone] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'late' | 'ontime'>('all');
 
   // Estados para Registro Manual
@@ -88,6 +93,11 @@ export const AttendancePage = () => {
     queryFn: shiftService.getShifts,
   });
 
+  const { data: allLeaves = [] } = useQuery({
+    queryKey: ['leaves'],
+    queryFn: attendanceService.getAllLeaveRequests,
+  });
+
   const deleteMutation = useMutation({
     mutationFn: attendanceService.deleteRecord,
     onSuccess: () => {
@@ -109,25 +119,34 @@ export const AttendancePage = () => {
   const manualRecordMutation = useMutation({
     mutationFn: async () => {
       if (!manualUserId || !manualDate || !manualTime) throw new Error('Faltan campos obligatorios');
-      
+
       const employee = employees.find(e => e.uid === manualUserId);
       if (!employee) throw new Error('Empleado no encontrado');
-      
+
       const zone = zones.find(z => z.id === employee.zoneId);
       const shift = employee.shiftId ? shifts.find(s => s.id === employee.shiftId) : null;
-      
+
       const expectedEntry = shift ? shift.entryTime : (zone?.entryTime || '09:00');
       const expectedExit = shift ? shift.exitTime : (zone?.exitTime || '18:00');
-      
+      const toleranceMinutes = shift?.entryTolerance || zone?.entryTolerance || 0;
+
       const currentIsoTime = new Date(`${manualDate}T${manualTime}:00`).toISOString();
       const existingRecord = await attendanceService.getTodayRecordByUser(manualUserId, manualDate);
-      
+
       if (manualType === 'in') {
         if (existingRecord) throw new Error('El empleado ya tiene un registro para esta fecha. Debes editar la salida.');
-        
-        let status: 'on_time' | 'late' = 'on_time';
-        if (manualTime > expectedEntry) status = 'late';
-        
+
+        const [h, m] = expectedEntry.split(':').map(Number);
+        const limitTime = new Date();
+        limitTime.setHours(h, m + toleranceMinutes, 0, 0);
+
+        const [mh, mm] = manualTime.split(':').map(Number);
+        const manTime = new Date();
+        manTime.setHours(mh, mm, 0, 0);
+
+        let status: 'on-time' | 'late' = 'on-time';
+        if (manTime > limitTime) status = 'late';
+
         await attendanceService.createRecord({
           userId: manualUserId,
           zoneId: employee.zoneId || '',
@@ -139,10 +158,10 @@ export const AttendancePage = () => {
       } else {
         if (!existingRecord) throw new Error('No hay una entrada registrada para esta fecha. Debes registrar la entrada primero.');
         if (existingRecord.checkOut) throw new Error('Ya existe una salida para esta fecha.');
-        
-        let outStatus: 'on_time' | 'early' = 'on_time';
+
+        let outStatus: 'on-time' | 'early' = 'on-time';
         if (manualTime < expectedExit) outStatus = 'early';
-        
+
         await attendanceService.updateRecord(existingRecord.id, {
           checkOut: currentIsoTime,
           checkOutStatus: outStatus
@@ -156,8 +175,8 @@ export const AttendancePage = () => {
       setManualUserId('');
       setManualTime(format(new Date(), 'HH:mm'));
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Error al guardar el registro manual.');
+    onError: (error: unknown) => {
+      toast.error((error as Error).message || 'Error al guardar el registro manual.');
     }
   });
 
@@ -179,16 +198,16 @@ export const AttendancePage = () => {
       let formattedDate = record.date;
       let formattedCheckIn = '--:--';
       let formattedCheckOut = '--:--';
-      
+
       try {
-        if (!formattedDate && (record as any).timestamp) {
-          formattedDate = format(parseISO((record as any).timestamp), 'yyyy-MM-dd');
+        if (!formattedDate && record.timestamp) {
+          formattedDate = format(parseISO(record.timestamp), 'yyyy-MM-dd');
         }
-        
+
         if (record.checkIn) {
           formattedCheckIn = format(parseISO(record.checkIn), 'hh:mm a');
-        } else if ((record as any).timestamp) {
-          formattedCheckIn = format(parseISO((record as any).timestamp), 'hh:mm a');
+        } else if (record.timestamp) {
+          formattedCheckIn = format(parseISO(record.timestamp), 'hh:mm a');
         }
 
         if (record.checkOut) {
@@ -208,7 +227,9 @@ export const AttendancePage = () => {
 
       const shiftEntry = shift ? shift.entryTime : (zone?.entryTime || '09:00');
       const shiftExit = shift ? shift.exitTime : (zone?.exitTime || '18:00');
-      const shiftLunch = shift?.lunchStartTime ? `${shift.lunchStartTime} - ${shift.lunchEndTime}` : '';
+      const empLunchStart = employee?.customLunchStartTime || shift?.lunchStartTime;
+      const empLunchEnd = employee?.customLunchEndTime || shift?.lunchEndTime;
+      const shiftLunch = empLunchStart && empLunchEnd ? `${empLunchStart} - ${empLunchEnd}` : '';
 
       return {
         ...record,
@@ -235,7 +256,7 @@ export const AttendancePage = () => {
     return enrichedRecords.filter(record => {
       // Filtro por Fecha
       if (filterDate && record.date !== filterDate) return false;
-      
+
       // Filtro por Empleado (Texto libre para nombre o cédula)
       if (filterEmployee) {
         const s = filterEmployee.toLowerCase();
@@ -243,7 +264,7 @@ export const AttendancePage = () => {
         const matchesId = record.documentId.toLowerCase().includes(s);
         if (!matchesName && !matchesId) return false;
       }
-      
+
       // Filtro por Sede
       if (filterZone && record.zoneId !== filterZone) return false;
 
@@ -261,7 +282,7 @@ export const AttendancePage = () => {
     const onTimeCount = filteredRecords.filter(r => !r.isLate).length;
     const lateCount = filteredRecords.filter(r => r.isLate).length;
     const earlyOutCount = filteredRecords.filter(r => r.isEarlyCheckout).length;
-    
+
     return {
       total,
       onTimeCount,
@@ -271,6 +292,288 @@ export const AttendancePage = () => {
       earlyOutCount
     };
   }, [filteredRecords]);
+
+  const generateSummaryData = () => {
+    const summaryMap = new Map<string, any>();
+    const approvedLeaves = allLeaves.filter(l => l.status === 'approved');
+
+    employees.forEach(emp => {
+      if (filterZone && emp.zoneId !== filterZone) return;
+      if (filterEmployee) {
+        const s = filterEmployee.toLowerCase();
+        const matchesName = (emp.displayName || '').toLowerCase().includes(s);
+        const matchesId = (emp.documentId || '').toLowerCase().includes(s);
+        if (!matchesName && !matchesId) return;
+      }
+      
+      summaryMap.set(emp.uid, {
+        'Empleado': emp.displayName || 'Empleado',
+        'Cédula': emp.documentId || '',
+        'Días Trabajados': 0,
+        'Fechas Trabajadas': '',
+        'Total Horas Trabajadas': 0,
+        'Minutos de Tardanza': 0,
+        'Horas Extras': 0,
+        'Días Justificados': 0,
+        '_diasSet': new Set<string>(),
+        '_zoneId': emp.zoneId
+      });
+    });
+
+    filteredRecords.forEach(r => {
+      if (!summaryMap.has(r.userId)) {
+        summaryMap.set(r.userId, {
+          'Empleado': r.employeeName,
+          'Cédula': r.documentId,
+          'Días Trabajados': 0,
+          'Fechas Trabajadas': '',
+          'Total Horas Trabajadas': 0,
+          'Minutos de Tardanza': 0,
+          'Horas Extras': 0,
+          'Días Justificados': 0,
+          '_diasSet': new Set<string>(),
+          '_zoneId': r.zoneId
+        });
+      }
+      const summary = summaryMap.get(r.userId);
+      if (r.formattedDate) {
+        summary['_diasSet'].add(r.formattedDate);
+      }
+
+      const hasLeaveThisDay = approvedLeaves.some(l => {
+        if (l.userId !== r.userId) return false;
+        const start = l.startDate || (l as any).date;
+        const end = l.endDate || (l as any).date;
+        return r.formattedDate >= start && r.formattedDate <= end;
+      });
+
+      if (r.isLate && r.checkIn && !hasLeaveThisDay) {
+        try {
+          const shiftEntry = r.shiftEntry || '09:00';
+          const expectedTime = new Date(`2000-01-01T${shiftEntry}:00`);
+          const checkInDate = parseISO(r.checkIn);
+          const checkInTime = new Date(`2000-01-01T${format(checkInDate, 'HH:mm')}:00`);
+
+          if (checkInTime > expectedTime) {
+            const diffMs = checkInTime.getTime() - expectedTime.getTime();
+            summary['Minutos de Tardanza'] += diffMs / 60000;
+          }
+        } catch (e) {
+          console.error("Error calculando tardanza", e);
+        }
+      }
+
+      if (r.checkIn && r.checkOut) {
+        try {
+          const inDate = parseISO(r.checkIn);
+          const outDate = parseISO(r.checkOut);
+          let workedMs = outDate.getTime() - inDate.getTime();
+
+          const employee = employees.find(e => e.uid === r.userId);
+          const shift = employee?.shiftId ? shifts.find(s => s.id === employee.shiftId) : null;
+          const zone = zones.find(z => z.id === r.zoneId);
+
+          const empLunchStart = employee?.customLunchStartTime || shift?.lunchStartTime;
+          const empLunchEnd = employee?.customLunchEndTime || shift?.lunchEndTime;
+
+          if (empLunchStart && empLunchEnd) {
+            const lunchStart = new Date(`2000-01-01T${empLunchStart}:00`);
+            const lunchEnd = new Date(`2000-01-01T${empLunchEnd}:00`);
+            const lunchMs = Math.max(0, lunchEnd.getTime() - lunchStart.getTime());
+            workedMs = Math.max(0, workedMs - lunchMs);
+          }
+
+          const workedHours = workedMs / (1000 * 60 * 60);
+          summary['Total Horas Trabajadas'] += workedHours;
+
+          const expectedEntry = shift ? shift.entryTime : (zone?.entryTime || '09:00');
+          const expectedExit = shift ? shift.exitTime : (zone?.exitTime || '18:00');
+          const entryTime = new Date(`2000-01-01T${expectedEntry}:00`);
+          const exitTime = new Date(`2000-01-01T${expectedExit}:00`);
+          let expectedMs = exitTime.getTime() - entryTime.getTime();
+
+          const empExpLunchStart = employee?.customLunchStartTime || shift?.lunchStartTime;
+          const empExpLunchEnd = employee?.customLunchEndTime || shift?.lunchEndTime;
+
+          if (empExpLunchStart && empExpLunchEnd) {
+            const lunchStart = new Date(`2000-01-01T${empExpLunchStart}:00`);
+            const lunchEnd = new Date(`2000-01-01T${empExpLunchEnd}:00`);
+            expectedMs -= Math.max(0, lunchEnd.getTime() - lunchStart.getTime());
+          }
+
+          const expectedHours = expectedMs / (1000 * 60 * 60);
+
+          if (workedHours > expectedHours) {
+            summary['Horas Extras'] += (workedHours - expectedHours);
+          }
+        } catch (e) {
+          console.error("Error calculando horas", e);
+        }
+      }
+    });
+
+    approvedLeaves.forEach(leave => {
+       if (!summaryMap.has(leave.userId)) return;
+       const summary = summaryMap.get(leave.userId);
+       const start = leave.startDate || (leave as any).date;
+       const end = leave.endDate || (leave as any).date;
+       const zone = zones.find(z => z.id === summary['_zoneId']);
+       const workDays = zone?.workDays || [1,2,3,4,5];
+       
+       if (filterDate) {
+         if (filterDate >= start && filterDate <= end) {
+            const dateObj = new Date(`${filterDate}T12:00:00`);
+            if (workDays.includes(dateObj.getDay())) {
+               if (!summary['_diasSet'].has(filterDate)) {
+                  summary['Días Justificados'] += 1;
+               }
+            }
+         }
+       } else {
+         const startDateObj = new Date(`${start}T12:00:00`);
+         const endDateObj = new Date(`${end}T12:00:00`);
+         for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
+            const dateStr = format(d, 'yyyy-MM-dd');
+            if (workDays.includes(d.getDay())) {
+               if (!summary['_diasSet'].has(dateStr)) {
+                  summary['Días Justificados'] += 1;
+               }
+            }
+         }
+       }
+    });
+
+    return Array.from(summaryMap.values())
+      .filter(s => s['_diasSet'].size > 0 || s['Días Justificados'] > 0)
+      .map(s => {
+        const diasArray = Array.from(s['_diasSet'] as Set<string>).sort();
+        return {
+          'Empleado': s['Empleado'],
+          'Cédula': s['Cédula'],
+          'Días Trabajados': diasArray.length,
+          'Días Justificados': s['Días Justificados'],
+          'Fechas Trabajadas': diasArray.join(', '),
+          'Total Horas Trabajadas': Number(s['Total Horas Trabajadas'].toFixed(2)),
+          'Minutos de Tardanza': Math.round(s['Minutos de Tardanza']),
+          'Horas Extras': Number(s['Horas Extras'].toFixed(2))
+        };
+      });
+  };
+
+  const handleExportExcel = () => {
+    if (filteredRecords.length === 0) {
+      toast.error('No hay registros para exportar en el rango actual.');
+      return;
+    }
+
+    const detailData = filteredRecords.map(r => ({
+      'Empleado': r.employeeName,
+      'Cédula': r.documentId,
+      'Fecha': r.formattedDate,
+      'Entrada': r.formattedCheckIn,
+      'Salida': r.formattedCheckOut,
+      'Estado': r.delayText,
+      'Sede': r.zoneName,
+      'Turno': r.shiftName
+    }));
+
+    const summaryData = generateSummaryData();
+
+    const wb = XLSX.utils.book_new();
+    const wsDetail = XLSX.utils.json_to_sheet(detailData);
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+
+    const wscolsDetail = [
+      { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 20 }
+    ];
+    wsDetail['!cols'] = wscolsDetail;
+
+    const wscolsSummary = [
+      { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 40 }, { wch: 20 }, { wch: 20 }, { wch: 20 }
+    ];
+    wsSummary['!cols'] = wscolsSummary;
+
+    XLSX.utils.book_append_sheet(wb, wsDetail, "Detalle de Asistencias");
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Resumen de Nómina");
+
+    XLSX.writeFile(wb, `Reporte_Asistencia_${filterDate || 'Historico'}.xlsx`);
+    toast.success('Reporte Excel exportado correctamente');
+  };
+
+  const handleExportPDF = () => {
+    if (filteredRecords.length === 0) {
+      toast.error('No hay registros para exportar en el rango actual.');
+      return;
+    }
+
+    const doc = new jsPDF('landscape');
+    const title = `Reporte de Asistencia - ${filterDate || 'Histórico'}`;
+    
+    // Configuración de estilo global
+    doc.setFontSize(16);
+    doc.text(title, 14, 15);
+    
+    // --- 1. Tabla de Resumen ---
+    doc.setFontSize(12);
+    doc.text('Resumen por Empleado', 14, 25);
+    
+    const summaryData = generateSummaryData();
+    const summaryColumns = [
+      'Empleado', 'Cédula', 'Días Trab.', 'Días Justif.', 'Fechas', 'Total Hrs', 'Tardanza (Min)', 'Hrs Extras'
+    ];
+    const summaryRows = summaryData.map(s => [
+      s['Empleado'],
+      s['Cédula'],
+      s['Días Trabajados'],
+      s['Días Justificados'],
+      s['Fechas Trabajadas'],
+      s['Total Horas Trabajadas'],
+      s['Minutos de Tardanza'],
+      s['Horas Extras']
+    ]);
+
+    autoTable(doc, {
+      startY: 30,
+      head: [summaryColumns],
+      body: summaryRows,
+      theme: 'grid',
+      headStyles: { fillColor: [73, 118, 159] },
+      styles: { fontSize: 8 },
+      columnStyles: { 4: { cellWidth: 80 } } // Fechas column width
+    });
+
+    // --- 2. Tabla de Detalles ---
+    const finalY = (doc as any).lastAutoTable.finalY || 30;
+    doc.addPage();
+    doc.setFontSize(12);
+    doc.text('Detalle de Registros', 14, 15);
+
+    const detailColumns = [
+      'Empleado', 'Cédula', 'Fecha', 'Entrada', 'Salida', 'Estado', 'Sede', 'Turno'
+    ];
+    const detailRows = filteredRecords.map(r => [
+      r.employeeName,
+      r.documentId,
+      r.formattedDate,
+      r.formattedCheckIn,
+      r.formattedCheckOut,
+      r.delayText,
+      r.zoneName,
+      r.shiftName
+    ]);
+
+    autoTable(doc, {
+      startY: 20,
+      head: [detailColumns],
+      body: detailRows,
+      theme: 'grid',
+      headStyles: { fillColor: [73, 118, 159] },
+      styles: { fontSize: 8 }
+    });
+
+    doc.save(`Reporte_Asistencia_${filterDate || 'Historico'}.pdf`);
+    toast.success('Reporte PDF exportado correctamente');
+  };
 
   // Botones Rápidos de Fecha
   const setQuickDate = (type: 'today' | 'yesterday' | 'all') => {
@@ -328,7 +631,7 @@ export const AttendancePage = () => {
               </div>
               <span className="text-slate-400 text-[10px]">Turno: {r.shiftEntry}</span>
             </div>
-            
+
             {/* Almuerzo (opcional) */}
             {r.shiftLunch && (
               <div className="flex items-center justify-between text-xs pl-4 border-l-2 border-slate-100 ml-1">
@@ -354,12 +657,11 @@ export const AttendancePage = () => {
       header: 'Estado',
       cell: info => {
         const r = info.row.original;
-        
+
         return (
           <div className="flex flex-col gap-1">
-            <span className={`inline-flex items-center w-max text-xs font-semibold px-2.5 py-1 rounded-lg border ${
-              r.isLate ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-            }`}>
+            <span className={`inline-flex items-center w-max text-xs font-semibold px-2.5 py-1 rounded-lg border ${r.isLate ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}>
               {r.isLate ? <AlertCircle className="w-3.5 h-3.5 mr-1.5 text-red-500" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />}
               {r.isLate ? 'Entrada Tarde' : 'A Tiempo'}
             </span>
@@ -396,6 +698,7 @@ export const AttendancePage = () => {
     }),
   ];
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: filteredRecords,
     columns,
@@ -415,25 +718,56 @@ export const AttendancePage = () => {
       {/* Header & Export */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Centro de Asistencia</h2>
-          <p className="text-slate-500 mt-1">Monitorea y audita los tiempos de tu equipo en tiempo real.</p>
+          <h2 className="text-2xl font-semibold tracking-wide text-slate-900 tracking-tight">Centro de Asistencia</h2>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-3">
-          <button 
+          <button
             onClick={handleOpenManualModal}
-            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-xl shadow-sm hover:bg-primary-700 transition-colors font-medium text-sm"
+            className="w-full inline-flex items-center justify-center px-4 py-2 font-medium text-sm bg-primary-600 text-white rounded-none btn-angled shadow-sm shadow-black/10 hover:bg-primary-700 hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200"
           >
             <UserPlus className="w-4 h-4 mr-2" />
             Registro Manual
           </button>
-          <button className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors font-medium text-sm">
+          <button
+            onClick={handleExportExcel}
+            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 bg-[#49769F] text-white rounded-none btn-angled shadow-sm hover:brightness-110 transition-colors font-medium text-sm"
+          >
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Exportar Excel
+          </button>
+          <button
+            onClick={handleExportPDF}
+            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-none btn-angled shadow-sm hover:brightness-110 transition-colors font-medium text-sm"
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Exportar PDF
           </button>
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200 gap-6">
+        <button
+          onClick={() => setActiveTab('diario')}
+          className={`py-3 px-1 font-semibold text-sm border-b-2 transition-colors ${
+            activeTab === 'diario' ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Registro Diario
+        </button>
+        <button
+          onClick={() => setActiveTab('semanal')}
+          className={`py-3 px-1 font-semibold text-sm border-b-2 transition-colors ${
+            activeTab === 'semanal' ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Reporte Semanal (Ausencias)
+        </button>
+      </div>
+
+      {activeTab === 'diario' ? (
+        <>
+          {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -442,7 +776,7 @@ export const AttendancePage = () => {
           <p className="text-sm font-semibold text-slate-500 mb-1 relative z-10">Total Asistencias</p>
           <p className="text-3xl font-bold text-slate-900 relative z-10">{kpis.total}</p>
         </div>
-        
+
         <div className="bg-white rounded-2xl p-5 border border-emerald-100 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
             <CheckCircle2 className="w-16 h-16 text-emerald-600" />
@@ -475,23 +809,23 @@ export const AttendancePage = () => {
       </div>
 
       {/* Control Bar (Filters) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+      <div className="bg-white rounded-none border border-slate-200 shadow-sm p-4 flex flex-col md:flex-row gap-4 items-center justify-between w-full">
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          <button 
+          <button
             onClick={() => setQuickDate('today')}
-            className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-medium transition-colors ${filterDate === format(new Date(), 'yyyy-MM-dd') ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+            className={`whitespace-nowrap px-4 py-2 rounded-none btn-angled text-sm font-medium transition-colors ${filterDate === format(new Date(), 'yyyy-MM-dd') ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'} hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200`}
           >
             Hoy
           </button>
-          <button 
+          <button
             onClick={() => setQuickDate('yesterday')}
-            className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-medium transition-colors ${filterDate === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+            className={`whitespace-nowrap px-4 py-2 rounded-none btn-angled text-sm font-medium transition-colors ${filterDate === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'} hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200`}
           >
             Ayer
           </button>
-          <button 
+          <button
             onClick={() => setQuickDate('all')}
-            className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-medium transition-colors ${filterDate === '' ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+            className={`whitespace-nowrap px-4 py-2 rounded-none btn-angled text-sm font-medium transition-colors ${filterDate === '' ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'} hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200`}
           >
             Todo el Historial
           </button>
@@ -509,7 +843,7 @@ export const AttendancePage = () => {
             <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as any)}
+              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'late' | 'ontime')}
               className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none"
             >
               <option value="all">Todos los estados</option>
@@ -532,10 +866,10 @@ export const AttendancePage = () => {
       </div>
 
       {/* Table Content */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col">
+      <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col w-full">
         <div className="overflow-x-auto flex-1">
-          <table className="w-full text-sm text-left min-w-[800px]">
-            <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+          <table className="w-full text-sm text-left min-w-[800px] table-gradient-rows">
+            <thead className="bg-white text-slate-700/80 font-semibold">
               {table.getHeaderGroups().map(headerGroup => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map(header => (
@@ -617,25 +951,25 @@ export const AttendancePage = () => {
                 <UserPlus className="w-5 h-5 mr-2 text-primary-600" />
                 Fichaje Manual
               </h3>
-              <button 
+              <button
                 onClick={() => setIsManualModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 hover:bg-slate-50 p-1 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Buscar Empleado</label>
-                <input 
-                  type="text" 
-                  placeholder="Escribe el nombre o cédula para filtrar..." 
+                <input
+                  type="text"
+                  placeholder="Escribe el nombre o cédula para filtrar..."
                   value={manualSearch}
                   onChange={(e) => setManualSearch(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 mb-2"
                 />
-                
+
                 <select
                   value={manualUserId}
                   onChange={(e) => setManualUserId(e.target.value)}
@@ -652,7 +986,7 @@ export const AttendancePage = () => {
                       <option key={emp.uid} value={emp.uid} className="py-1">
                         {emp.documentId ? `V-${emp.documentId} - ` : ''}{emp.displayName}
                       </option>
-                  ))}
+                    ))}
                 </select>
               </div>
 
@@ -691,27 +1025,31 @@ export const AttendancePage = () => {
             </div>
 
             <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-              <button 
+              <button
                 onClick={() => setIsManualModalOpen(false)}
                 className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors"
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 onClick={() => manualRecordMutation.mutate()}
                 disabled={manualRecordMutation.isPending || !manualUserId}
-                className="inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-xl shadow-sm hover:bg-primary-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center px-4 py-2 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-[#0A4174] text-white rounded-none btn-angled shadow-sm hover:brightness-110 active:scale-95 transition-all duration-200"
               >
                 {manualRecordMutation.isPending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <CheckCircle2 className="w-4 h-4 mr-2" />
                 )}
-                Guardar Registro
+                <span className="font-semibold">{manualType === 'in' ? 'Guardar Entrada' : 'Guardar Salida'}</span>
               </button>
             </div>
           </div>
         </div>
+      )}
+        </>
+      ) : (
+        <WeeklyReport />
       )}
     </div>
   );

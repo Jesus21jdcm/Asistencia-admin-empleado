@@ -12,6 +12,8 @@ export interface User {
   status?: 'pendiente' | 'activo' | 'rechazado';
   zoneId?: string;
   shiftId?: string; // ID del turno asignado
+  customLunchStartTime?: string; // Formato HH:mm
+  customLunchEndTime?: string; // Formato HH:mm
 }
 
 export interface Shift {
@@ -21,6 +23,7 @@ export interface Shift {
   exitTime: string; // Formato HH:mm
   lunchStartTime?: string; // Formato HH:mm
   lunchEndTime?: string; // Formato HH:mm
+  entryTolerance?: number; // Tolerancia en minutos para la entrada
 }
 
 export interface Zone {
@@ -29,6 +32,8 @@ export interface Zone {
   polygon: { lat: number; lng: number }[]; // Arreglo de 4 puntos
   entryTime?: string; // Formato HH:mm
   exitTime?: string; // Formato HH:mm
+  entryTolerance?: number; // Tolerancia en minutos
+  workDays?: number[]; // [1, 2, 3, 4, 5] para Lunes a Viernes (0=Dom, 1=Lun...)
 }
 
 export interface AttendanceRecord {
@@ -40,6 +45,7 @@ export interface AttendanceRecord {
   checkInStatus?: 'on-time' | 'late';
   checkOut?: string; // ISO date string
   checkOutStatus?: 'on-time' | 'early';
+  timestamp?: string;
 }
 
 export interface LeaveRequest {
@@ -47,5 +53,6 @@ export interface LeaveRequest {
   userId: string;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
-  date: string; // ISO date string
+  startDate: string; // ISO date string (YYYY-MM-DD)
+  endDate: string; // ISO date string (YYYY-MM-DD)
 }

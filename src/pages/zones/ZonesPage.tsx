@@ -36,6 +36,8 @@ const zoneSchema = z.object({
   ).length(4, 'Debes marcar exactamente 4 puntos en el mapa'),
   entryTime: z.string().optional(),
   exitTime: z.string().optional(),
+  entryTolerance: z.coerce.number().min(0, 'No puede ser negativo').optional().default(0),
+  workDays: z.array(z.coerce.number()).optional().default([1, 2, 3, 4, 5]),
 });
 
 type ZoneFormValues = z.infer<typeof zoneSchema>;
@@ -57,16 +59,16 @@ function GeocoderControl() {
   const map = useMap();
 
   useEffect(() => {
-    // @ts-ignore
+    // @ts-expect-error
     const geocoder = L.Control.geocoder({
       defaultMarkGeocode: false,
       placeholder: "Buscar ubicación...",
     })
-    .on('markgeocode', function(e: any) {
-      const latlng = e.geocode.center;
-      map.flyTo(latlng, 18, { animate: true, duration: 1.5 });
-    })
-    .addTo(map);
+      .on('markgeocode', function (e: any) {
+        const latlng = e.geocode.center;
+        map.flyTo(latlng, 18, { animate: true, duration: 1.5 });
+      })
+      .addTo(map);
 
     return () => {
       map.removeControl(geocoder);
@@ -76,12 +78,12 @@ function GeocoderControl() {
   return null;
 }
 
-function LocationEvents({ 
-  setIsLocating, 
-  setUserLocation 
-}: { 
-  setIsLocating: (val: boolean) => void, 
-  setUserLocation: (val: {lat: number, lng: number} | null) => void 
+function LocationEvents({
+  setIsLocating,
+  setUserLocation
+}: {
+  setIsLocating: (val: boolean) => void,
+  setUserLocation: (val: { lat: number, lng: number } | null) => void
 }) {
   useMapEvents({
     locationfound(e) {
@@ -103,11 +105,11 @@ export const ZonesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
   const [currentPoints, setCurrentPoints] = useState<{ lat: number, lng: number }[]>([]);
-  
+
   // Geolocation state
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [isLocating, setIsLocating] = useState(false);
-  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
 
   // Fetch zones
   const { data: zones = [], isLoading } = useQuery({
@@ -148,12 +150,14 @@ export const ZonesPage = () => {
 
   // Form setup
   const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<ZoneFormValues>({
-    resolver: zodResolver(zoneSchema),
+    resolver: zodResolver(zoneSchema) as any,
     defaultValues: {
       name: '',
       polygon: [],
       entryTime: '08:00',
-      exitTime: '17:00'
+      exitTime: '17:00',
+      entryTolerance: 0,
+      workDays: [1, 2, 3, 4, 5]
     }
   });
 
@@ -170,6 +174,8 @@ export const ZonesPage = () => {
       setValue('polygon', zone.polygon || []);
       setValue('entryTime', zone.entryTime || '08:00');
       setValue('exitTime', zone.exitTime || '17:00');
+      setValue('entryTolerance', zone.entryTolerance || 0);
+      setValue('workDays', zone.workDays || [1, 2, 3, 4, 5]);
     } else {
       setEditingZone(null);
       setCurrentPoints([]);
@@ -177,6 +183,8 @@ export const ZonesPage = () => {
       setValue('polygon', []);
       setValue('entryTime', '08:00');
       setValue('exitTime', '17:00');
+      setValue('entryTolerance', 0);
+      setValue('workDays', [1, 2, 3, 4, 5]);
     }
     setIsModalOpen(true);
   };
@@ -251,6 +259,7 @@ export const ZonesPage = () => {
     }),
   ];
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: zones,
     columns,
@@ -262,12 +271,11 @@ export const ZonesPage = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Geocercas (Sedes)</h2>
-          <p className="text-slate-500 mt-1">Dibuja tus sedes usando 4 puntos en el mapa.</p>
+          <h2 className="text-2xl font-semibold tracking-wide text-slate-900 tracking-tight">Oficinas</h2>
         </div>
         <button
           onClick={() => openModal()}
-          className="inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-xl shadow-sm shadow-primary-500/30 hover:bg-primary-700 transition-colors font-medium text-sm"
+          className="inline-flex items-center justify-center px-4 py-2 font-medium text-sm bg-primary-600 text-white rounded-none btn-angled shadow-sm shadow-black/10 hover:bg-primary-700 hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200"
         >
           <Plus className="w-4 h-4 mr-2" />
           Nueva Sede
@@ -275,10 +283,10 @@ export const ZonesPage = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1">
+      <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex-1 w-full">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium">
+          <table className="w-full text-sm text-left table-gradient-rows">
+            <thead className="bg-white text-slate-700/80 font-semibold">
               {table.getHeaderGroups().map(headerGroup => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map(header => (
@@ -333,7 +341,7 @@ export const ZonesPage = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="p-6 flex flex-col flex-1 overflow-hidden">
+            <form onSubmit={handleSubmit(onSubmit as any)} className="p-6 flex flex-col flex-1 overflow-hidden">
               <div className="flex flex-col md:flex-row gap-6 h-full">
                 {/* Panel Izquierdo: Formulario */}
                 <div className="w-full md:w-1/3 space-y-4">
@@ -367,16 +375,50 @@ export const ZonesPage = () => {
                     </div>
                   </div>
 
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tolerancia de Entrada (minutos)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.entryTolerance ? 'border-red-300' : 'border-slate-200 bg-white'}`}
+                      {...register('entryTolerance')}
+                    />
+                    {errors.entryTolerance && <p className="mt-1 text-xs text-red-500">{errors.entryTolerance.message}</p>}
+                    <p className="text-xs text-slate-500 mt-1">Margen de tiempo permitido después de la hora de entrada antes de marcar tarde.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Días Laborables</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[1, 2, 3, 4, 5, 6, 0].map(day => {
+                        const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                        const currentDays = register('workDays').value || [1,2,3,4,5];
+                        // As we use react-hook-form uncontrolled we need a helper or watch
+                        return (
+                          <label key={day} className="flex items-center space-x-1.5 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100">
+                            <input
+                              type="checkbox"
+                              value={day}
+                              {...register('workDays')}
+                              className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                            />
+                            <span className="text-xs font-medium text-slate-700">{dayNames[day]}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm">
                     <p className="font-semibold text-slate-700 mb-2">Instrucciones:</p>
-                    <p className="text-slate-600 mb-2">Haz clic en el mapa para marcar exactamente 4 puntos que formarán la geocerca de esta sede.</p>
+                    <p className="text-slate-600 mb-2">Haz clic en el mapa para marcar exactamente 4 puntos que formarán la oficina perimetral (geocerca).</p>
                     <p className="text-indigo-600 font-medium">Puntos marcados: {currentPoints.length} / 4</p>
                     {errors.polygon && <p className="mt-2 text-xs text-red-500 font-bold">{errors.polygon.message}</p>}
 
                     <button
                       type="button"
                       onClick={handleClearMap}
-                      className="mt-4 w-full flex items-center justify-center px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors text-xs font-semibold"
+                      className="mt-4 w-full flex items-center justify-center px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-none btn-angled hover:bg-slate-100 transition-colors text-xs font-semibold"
                     >
                       <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Limpiar Polígono
                     </button>
@@ -386,7 +428,7 @@ export const ZonesPage = () => {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full inline-flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-xl shadow-sm hover:bg-primary-700 transition-colors font-medium text-sm disabled:opacity-70"
+                      className="w-full inline-flex items-center justify-center px-4 py-2.5 font-medium text-sm disabled:opacity-70 bg-primary-600 text-white rounded-none btn-angled shadow-sm shadow-black/10 hover:bg-primary-700 hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200"
                     >
                       {isSubmitting ? (
                         <span className="flex items-center">
@@ -400,7 +442,7 @@ export const ZonesPage = () => {
                     <button
                       type="button"
                       onClick={closeModal}
-                      className="w-full px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-xl transition-colors border border-slate-200"
+                      className="w-full px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-none btn-angled transition-colors border border-slate-200"
                     >
                       Cancelar
                     </button>
@@ -417,7 +459,7 @@ export const ZonesPage = () => {
                   >
                     <GeocoderControl />
                     <LocationEvents setIsLocating={setIsLocating} setUserLocation={setUserLocation} />
-                    
+
                     {/* Layer Híbrido: Satélite + Nombres de Calles y Locales (Google Hybrid) */}
                     <TileLayer
                       attribution='&copy; Google'
@@ -452,7 +494,7 @@ export const ZonesPage = () => {
 
                   {/* Botón flotante fuera del MapContainer para evitar conflictos con Leaflet DOM */}
                   <div className="absolute top-20 left-4 z-[100]">
-                    <button 
+                    <button
                       type="button"
                       onClick={handleLocate}
                       disabled={isLocating}

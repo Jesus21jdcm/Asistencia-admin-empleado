@@ -42,7 +42,7 @@ export const authService = {
         photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
         zoneId: userData.zoneId || undefined,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error during login:", error);
       throw error;
     }

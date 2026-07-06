@@ -1,23 +1,29 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Check, 
-  Users, 
-  Loader2, 
-  Building
+import {
+  Check,
+  Users,
+  Loader2,
+  Building,
+  UserCog,
+  X
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { employeeService } from '../../services/employeeService';
+import { employeeService, type Employee } from '../../services/employeeService';
 import { zoneService } from '../../services/zoneService';
 import { shiftService } from '../../services/shiftService';
+import { useOutletContext } from 'react-router-dom';
 
 export const EmployeesPage = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'pending' | 'active'>('pending');
-  
+
   // Guardamos localmente qué sede ha seleccionado el admin para cada empleado pendiente
   const [selectedZones, setSelectedZones] = useState<Record<string, string>>({});
   const [selectedShifts, setSelectedShifts] = useState<Record<string, string>>({});
+
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<Employee>>({});
 
   // Queries
   const { data: pendingEmployees = [], isLoading: isLoadingPending } = useQuery({
@@ -30,25 +36,44 @@ export const EmployeesPage = () => {
     queryFn: employeeService.getActiveEmployees,
   });
 
+  const { searchQuery = '' } = useOutletContext<{ searchQuery: string }>() || {};
+
+  const filteredActiveEmployees = activeEmployees.filter(emp => {
+    if (!searchQuery) return true;
+    const s = searchQuery.toLowerCase();
+    const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+    const docId = emp.documentId?.toLowerCase() || '';
+    return fullName.includes(s) || docId.includes(s);
+  });
+
+  const filteredPendingEmployees = pendingEmployees.filter(emp => {
+    if (!searchQuery) return true;
+    const s = searchQuery.toLowerCase();
+    const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+    const docId = emp.documentId?.toLowerCase() || '';
+    return fullName.includes(s) || docId.includes(s);
+  });
+
   const { data: zones = [], isLoading: isLoadingZones } = useQuery({
     queryKey: ['zones'],
     queryFn: zoneService.getZones,
   });
 
-  const { data: shifts = [], isLoading: isLoadingShifts } = useQuery({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { data: shifts = [] } = useQuery({
     queryKey: ['shifts'],
     queryFn: shiftService.getShifts,
   });
 
   // Mutations
   const approveMutation = useMutation({
-    mutationFn: ({ uid, zoneId, shiftId }: { uid: string; zoneId: string; shiftId?: string }) => 
+    mutationFn: ({ uid, zoneId, shiftId }: { uid: string; zoneId: string; shiftId?: string }) =>
       employeeService.approveEmployee(uid, zoneId, shiftId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success('Empleado aprobado y asignado correctamente');
     },
-    onError: (error: any) => toast.error(error.message || 'Error al aprobar empleado'),
+    onError: (error: Error) => toast.error(error.message || 'Error al aprobar empleado'),
   });
 
   const rejectMutation = useMutation({
@@ -57,17 +82,38 @@ export const EmployeesPage = () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success('Registro de empleado rechazado');
     },
-    onError: (error: any) => toast.error(error.message || 'Error al rechazar empleado'),
+    onError: (error: Error) => toast.error(error.message || 'Error al rechazar empleado'),
   });
 
   const updateZoneMutation = useMutation({
-    mutationFn: ({ uid, zoneId, shiftId }: { uid: string; zoneId: string, shiftId: string }) => 
+    mutationFn: ({ uid, zoneId, shiftId }: { uid: string; zoneId: string, shiftId: string }) =>
       employeeService.updateEmployeeZoneAndShift(uid, zoneId, shiftId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success('Sede reasignada correctamente');
     },
-    onError: (error: any) => toast.error(error.message || 'Error al reasignar sede'),
+    onError: (error: Error) => toast.error(error.message || 'Error al reasignar sede'),
+  });
+
+  const updateLunchMutation = useMutation({
+    mutationFn: ({ uid, start, end }: { uid: string; start: string | null; end: string | null }) =>
+      employeeService.updateEmployeeLunchTime(uid, start, end),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success('Horario de almuerzo actualizado');
+    },
+    onError: (error: Error) => toast.error(error.message || 'Error al actualizar almuerzo'),
+  });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: ({ uid, data }: { uid: string, data: Partial<Employee> }) =>
+      employeeService.updateEmployeeProfile(uid, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success('Perfil actualizado correctamente');
+      setSelectedEmployee(null);
+    },
+    onError: (error: Error) => toast.error(error.message || 'Error al actualizar perfil'),
   });
 
   const handleApprove = (uid: string) => {
@@ -92,36 +138,32 @@ export const EmployeesPage = () => {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Aprobación y Asignación</h2>
-        <p className="text-slate-500 mt-1">Gestiona el acceso de los empleados que se registraron desde la app móvil.</p>
+        <h2 className="text-2xl font-semibold tracking-wide text-slate-900 tracking-tight">Aprobación y Asignación</h2>
       </div>
 
       {/* Tabs */}
       <div className="flex border-b border-slate-200">
         <button
           onClick={() => setActiveTab('pending')}
-          className={`pb-4 px-6 text-sm font-semibold transition-all relative ${
-            activeTab === 'pending' 
-              ? 'text-primary-600 border-b-2 border-primary-600' 
+          className={`pb-4 px-6 text-sm font-semibold transition-all relative ${activeTab === 'pending'
+              ? 'text-primary-600 border-b-2 border-primary-600'
               : 'text-slate-500 hover:text-slate-800'
-          }`}
+            }`}
         >
           Pendientes Aprobación
-          {pendingEmployees.length > 0 && (
+          {filteredPendingEmployees.length > 0 && (
             <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-primary-100 text-primary-700">
-              {pendingEmployees.length}
+              {filteredPendingEmployees.length}
             </span>
           )}
         </button>
         <button
           onClick={() => setActiveTab('active')}
-          className={`pb-4 px-6 text-sm font-semibold transition-all relative ${
-            activeTab === 'active' 
-              ? 'text-primary-600 border-b-2 border-primary-600' 
-              : 'text-slate-500 hover:text-slate-800'
+          className={`py-3 px-1 font-semibold text-sm border-b-2 transition-colors ${
+            activeTab === 'active' ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          Empleados Activos
+          Empleado Activo
         </button>
       </div>
 
@@ -133,19 +175,19 @@ export const EmployeesPage = () => {
               <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-500 mb-2" />
               <p className="text-slate-500 text-sm">Cargando solicitudes pendientes...</p>
             </div>
-          ) : pendingEmployees.length === 0 ? (
+          ) : filteredPendingEmployees.length === 0 ? (
             <div className="bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-sm max-w-lg mx-auto">
               <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-100 shadow-inner">
                 <Check className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900">Todo al día</h3>
-              <p className="text-slate-500 text-sm mt-1">No hay nuevas solicitudes de registro en este momento.</p>
+              <h3 className="text-lg font-bold text-slate-900">{searchQuery ? 'Sin resultados' : 'Todo al día'}</h3>
+              <p className="text-slate-500 text-sm mt-1">{searchQuery ? 'No se encontraron solicitudes con esa búsqueda.' : 'No hay nuevas solicitudes de registro en este momento.'}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {pendingEmployees.map((employee) => (
-                <div 
-                  key={employee.uid} 
+              {filteredPendingEmployees.map((employee) => (
+                <div
+                  key={employee.uid}
                   className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group"
                 >
                   <div>
@@ -212,7 +254,7 @@ export const EmployeesPage = () => {
                     <button
                       onClick={() => handleApprove(employee.uid)}
                       disabled={approveMutation.isPending}
-                      className="flex-1 inline-flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 shadow-sm shadow-primary-500/20 transition-all"
+                      className="flex-1 inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold bg-primary-600 text-white rounded-full shadow-sm shadow-black/10 hover:bg-primary-700 hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200"
                     >
                       Aprobar
                     </button>
@@ -223,15 +265,16 @@ export const EmployeesPage = () => {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden w-full">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium">
+            <table className="w-full text-sm text-left table-gradient-rows">
+              <thead className="bg-white text-slate-700/80 font-semibold">
                 <tr>
                   <th className="px-6 py-4">Empleado</th>
                   <th className="px-6 py-4">Correo</th>
                   <th className="px-6 py-4">Sede Asignada</th>
                   <th className="px-6 py-4">Turno Asignado</th>
+                  <th className="px-6 py-4">Almuerzo</th>
                   <th className="px-6 py-4"></th>
                 </tr>
               </thead>
@@ -245,13 +288,13 @@ export const EmployeesPage = () => {
                   </tr>
                 ) : activeEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                       <Users className="w-12 h-12 mx-auto mb-3 text-slate-300" />
                       <p>No hay empleados activos en el sistema.</p>
                     </td>
                   </tr>
                 ) : (
-                  activeEmployees.map((employee) => {
+                  filteredActiveEmployees.map((employee) => {
                     return (
                       <tr key={employee.uid} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4">
@@ -295,10 +338,39 @@ export const EmployeesPage = () => {
                             </select>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="time"
+                              value={employee.customLunchStartTime || ''}
+                              onChange={(e) => updateLunchMutation.mutate({ uid: employee.uid, start: e.target.value || null, end: employee.customLunchEndTime || null })}
+                              className="bg-transparent text-sm border-b border-transparent focus:border-slate-300 pb-0.5 cursor-pointer max-w-[80px]"
+                            />
+                            <span className="text-slate-400">-</span>
+                            <input
+                              type="time"
+                              value={employee.customLunchEndTime || ''}
+                              onChange={(e) => updateLunchMutation.mutate({ uid: employee.uid, start: employee.customLunchStartTime || null, end: e.target.value || null })}
+                              className="bg-transparent text-sm border-b border-transparent focus:border-slate-300 pb-0.5 cursor-pointer max-w-[80px]"
+                            />
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                          <button
+                            onClick={() => {
+                              setSelectedEmployee(employee);
+                              setEditFormData({ displayName: employee.displayName, documentId: employee.documentId });
+                            }}
+                            className="inline-flex items-center text-xs font-semibold text-primary-600 hover:text-primary-800 hover:bg-primary-50 px-3 py-1.5 rounded-lg transition-colors"
+                            title="Editar Perfil"
+                          >
+                            <UserCog className="w-4 h-4 mr-1" />
+                            Editar
+                          </button>
                           <button
                             onClick={() => rejectMutation.mutate(employee.uid)}
-                            className="text-xs font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                            className="inline-flex items-center text-xs font-semibold    px-3 py-1.5  transition-colors bg-[#49769F] text-white rounded-none btn-angled shadow-sm shadow-black/10 hover:brightness-110 hover:scale-[1.02] active:brightness-90 active:scale-95 transition-all duration-200"
+                            title="Desactivar"
                           >
                             Desactivar
                           </button>
@@ -309,6 +381,77 @@ export const EmployeesPage = () => {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Profile Modal */}
+      {selectedEmployee && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-xl text-slate-900">Editar Perfil</h3>
+              <button
+                onClick={() => setSelectedEmployee(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              updateProfileMutation.mutate({ uid: selectedEmployee.uid, data: editFormData });
+            }} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
+                <input
+                  type="text"
+                  required
+                  value={editFormData.displayName || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, displayName: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Cédula / Documento</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={editFormData.documentId || ''}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    setEditFormData({ ...editFormData, documentId: value });
+                  }}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Correo Electrónico</label>
+                <input
+                  type="email"
+                  disabled
+                  value={selectedEmployee.email || ''}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 text-slate-500 text-sm cursor-not-allowed"
+                />
+              </div>
+              <div className="pt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedEmployee(null)}
+                  className="flex-1 px-4 py-2.5 bg-[#49769F] text-white rounded-none btn-angled font-semibold hover:brightness-110 hover:scale-[1.02] active:brightness-90 active:scale-95 transition-all duration-200 text-sm shadow-sm shadow-black/10"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateProfileMutation.isPending}
+                  className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-none btn-angled font-semibold hover:bg-primary-700 hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200 text-sm flex items-center justify-center shadow-sm shadow-black/10"
+                >
+                  {updateProfileMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

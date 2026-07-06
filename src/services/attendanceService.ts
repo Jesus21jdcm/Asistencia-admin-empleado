@@ -47,8 +47,8 @@ export const attendanceService = {
       ...doc.data()
     })) as AttendanceRecord[];
     return records.sort((a, b) => {
-      const dateA = a.date || (a as any).timestamp || '';
-      const dateB = b.date || (b as any).timestamp || '';
+      const dateA = a.date || (a as unknown).timestamp || '';
+      const dateB = b.date || (b as unknown).timestamp || '';
       return new Date(dateB).getTime() - new Date(dateA).getTime();
     });
   },
@@ -82,7 +82,11 @@ export const attendanceService = {
       id: doc.id,
       ...doc.data()
     })) as import('../types/models').LeaveRequest[];
-    return results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return results.sort((a, b) => {
+      const dateA = a.startDate || (a as any).date;
+      const dateB = b.startDate || (b as any).date;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
   },
 
   getAllLeaveRequests: async (): Promise<import('../types/models').LeaveRequest[]> => {
@@ -92,6 +96,16 @@ export const attendanceService = {
       id: doc.id,
       ...doc.data()
     })) as import('../types/models').LeaveRequest[];
-    return results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return results.sort((a, b) => {
+      const dateA = a.startDate || (a as any).date;
+      const dateB = b.startDate || (b as any).date;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+  },
+
+  updateLeaveRequestStatus: async (id: string, status: 'approved' | 'rejected'): Promise<void> => {
+    const { doc, updateDoc } = await import('firebase/firestore');
+    const leaveRef = doc(db, 'justificaciones', id);
+    await updateDoc(leaveRef, { status });
   }
 };

@@ -20,6 +20,7 @@ const shiftSchema = z.object({
   exitTime: z.string().min(1, 'La hora de salida es obligatoria'),
   lunchStartTime: z.string().optional(),
   lunchEndTime: z.string().optional(),
+  entryTolerance: z.number().min(0, 'No puede ser negativo').optional().default(0),
 });
 
 type ShiftFormValues = z.infer<typeof shiftSchema>;
@@ -43,7 +44,7 @@ export const ShiftsPage = () => {
       toast.success('Turno creado exitosamente');
       closeModal();
     },
-    onError: (error: any) => toast.error(error.message || 'Error al crear el turno'),
+    onError: (error: Error) => toast.error(error.message || 'Error al crear el turno'),
   });
 
   const updateMutation = useMutation({
@@ -54,7 +55,7 @@ export const ShiftsPage = () => {
       toast.success('Turno actualizado exitosamente');
       closeModal();
     },
-    onError: (error: any) => toast.error(error.message || 'Error al actualizar el turno'),
+    onError: (error: Error) => toast.error(error.message || 'Error al actualizar el turno'),
   });
 
   const deleteMutation = useMutation({
@@ -63,7 +64,7 @@ export const ShiftsPage = () => {
       queryClient.invalidateQueries({ queryKey: ['shifts'] });
       toast.success('Turno eliminado');
     },
-    onError: (error: any) => toast.error(error.message || 'Error al eliminar el turno'),
+    onError: (error: Error) => toast.error(error.message || 'Error al eliminar el turno'),
   });
 
   // Form setup
@@ -74,7 +75,8 @@ export const ShiftsPage = () => {
       entryTime: '08:00',
       exitTime: '17:00',
       lunchStartTime: '12:00',
-      lunchEndTime: '13:00'
+      lunchEndTime: '13:00',
+      entryTolerance: 0
     }
   });
 
@@ -86,6 +88,7 @@ export const ShiftsPage = () => {
       setValue('exitTime', shift.exitTime);
       setValue('lunchStartTime', shift.lunchStartTime || '');
       setValue('lunchEndTime', shift.lunchEndTime || '');
+      setValue('entryTolerance', shift.entryTolerance || 0);
     } else {
       setEditingShift(null);
       setValue('name', '');
@@ -93,6 +96,7 @@ export const ShiftsPage = () => {
       setValue('exitTime', '17:00');
       setValue('lunchStartTime', '12:00');
       setValue('lunchEndTime', '13:00');
+      setValue('entryTolerance', 0);
     }
     setIsModalOpen(true);
   };
@@ -162,6 +166,7 @@ export const ShiftsPage = () => {
     }),
   ];
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: shifts,
     columns,
@@ -173,12 +178,11 @@ export const ShiftsPage = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Gestión de Turnos</h2>
-          <p className="text-slate-500 mt-1">Crea y administra los horarios de trabajo para asignarlos a los empleados.</p>
+          <h2 className="text-2xl font-semibold tracking-wide text-slate-900 tracking-tight">Gestión de Turnos</h2>
         </div>
         <button
           onClick={() => openModal()}
-          className="inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-xl shadow-sm shadow-primary-500/30 hover:bg-primary-700 transition-colors font-medium text-sm"
+          className="inline-flex items-center justify-center px-4 py-2 font-medium text-sm bg-primary-600 text-white rounded-none btn-angled shadow-sm shadow-black/10 hover:bg-primary-700 hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200"
         >
           <Plus className="w-4 h-4 mr-2" />
           Nuevo Turno
@@ -186,10 +190,10 @@ export const ShiftsPage = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1">
+      <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex-1 w-full">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium">
+          <table className="w-full text-sm text-left table-gradient-rows">
+            <thead className="bg-white text-slate-700/80 font-semibold">
               {table.getHeaderGroups().map(headerGroup => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map(header => (
@@ -258,7 +262,7 @@ export const ShiftsPage = () => {
 
               <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
                 <div className="col-span-2">
-                  <h4 className="text-sm font-semibold text-slate-800 flex items-center"><Clock className="w-4 h-4 mr-1.5 text-indigo-500"/> Horario Laboral</h4>
+                  <h4 className="text-sm font-semibold text-slate-800 flex items-center"><Clock className="w-4 h-4 mr-1.5 text-indigo-500" /> Horario Laboral</h4>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Hora Entrada</label>
@@ -277,6 +281,17 @@ export const ShiftsPage = () => {
                     {...register('exitTime')}
                   />
                   {errors.exitTime && <p className="mt-1 text-xs text-red-500">{errors.exitTime.message}</p>}
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Tolerancia (minutos)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className={`w-full px-3 py-2 border bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.entryTolerance ? 'border-red-300' : 'border-slate-200'}`}
+                    {...register('entryTolerance', { valueAsNumber: true })}
+                  />
+                  {errors.entryTolerance && <p className="mt-1 text-xs text-red-500">{errors.entryTolerance.message}</p>}
+                  <p className="text-xs text-slate-500 mt-1">Margen de tiempo permitido después de la hora de entrada antes de marcar tarde.</p>
                 </div>
               </div>
 
@@ -307,14 +322,14 @@ export const ShiftsPage = () => {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-xl transition-colors border border-slate-200"
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-none btn-angled transition-colors border border-slate-200"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 inline-flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-xl shadow-sm hover:bg-primary-700 transition-colors font-medium text-sm disabled:opacity-70"
+                  className="flex-1 inline-flex items-center justify-center px-4 py-2.5 font-medium text-sm disabled:opacity-70 bg-primary-600 text-white rounded-none btn-angled shadow-sm shadow-black/10 hover:bg-primary-700 hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200"
                 >
                   {isSubmitting ? (
                     <span className="flex items-center">
