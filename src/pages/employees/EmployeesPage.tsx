@@ -146,8 +146,8 @@ export const EmployeesPage = () => {
         <button
           onClick={() => setActiveTab('pending')}
           className={`pb-4 px-6 text-sm font-semibold transition-all relative ${activeTab === 'pending'
-              ? 'text-primary-600 border-b-2 border-primary-600'
-              : 'text-slate-500 hover:text-slate-800'
+            ? 'text-primary-600 border-b-2 border-primary-600'
+            : 'text-slate-500 hover:text-slate-800'
             }`}
         >
           Pendientes Aprobación
@@ -159,9 +159,8 @@ export const EmployeesPage = () => {
         </button>
         <button
           onClick={() => setActiveTab('active')}
-          className={`py-3 px-1 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'active' ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
+          className={`py-3 px-1 font-semibold text-sm border-b-2 transition-colors ${activeTab === 'active' ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
         >
           Empleados Activos
         </button>

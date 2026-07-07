@@ -15,6 +15,7 @@ import { zoneService } from '../../services/zoneService';
 import type { Zone } from '../../types/models';
 import { MapContainer, TileLayer, Polygon, useMapEvents, Marker, Popup, useMap, LayerGroup } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import 'leaflet-control-geocoder/dist/Control.Geocoder.css';
 import 'leaflet-control-geocoder';
 
@@ -34,6 +35,14 @@ const zoneSchema = z.object({
       lng: z.number()
     })
   ).length(4, 'Debes marcar exactamente 4 puntos en el mapa'),
+  subZones: z.array(
+    z.object({
+      name: z.string().min(1, 'El nombre de la sub-sede no puede estar vacío'),
+      polygon: z.array(
+        z.object({ lat: z.number(), lng: z.number() })
+      ).length(4, 'La sub-sede debe tener exactamente 4 puntos')
+    })
+  ).optional().default([]),
   entryTime: z.string().optional(),
   exitTime: z.string().optional(),
   entryTolerance: z.coerce.number().min(0, 'No puede ser negativo').optional().default(0),
@@ -42,14 +51,14 @@ const zoneSchema = z.object({
 
 type ZoneFormValues = z.infer<typeof zoneSchema>;
 
-function MapClickHandler({ points, setPoints }: { points: { lat: number, lng: number }[], setPoints: (p: { lat: number, lng: number }[]) => void }) {
+function MapClickHandler({ 
+  onPointAdd 
+}: { 
+  onPointAdd: (lat: number, lng: number) => void 
+}) {
   useMapEvents({
     click(e) {
-      if (points.length < 4) {
-        setPoints([...points, { lat: e.latlng.lat, lng: e.latlng.lng }]);
-      } else {
-        toast.info("Ya has marcado los 4 puntos del polígono. Usa el botón limpiar si quieres rehacerlo.");
-      }
+      onPointAdd(e.latlng.lat, e.latlng.lng);
     },
   });
   return null;
@@ -100,17 +109,31 @@ function LocationEvents({
   return null;
 }
 
+function MapResizer() {
+  const map = useMap();
+  useEffect(() => {
+    // Esperar a que la animación del modal termine para que el contenedor tenga su tamaño final
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
+}
+
 export const ZonesPage = () => {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
   const [currentPoints, setCurrentPoints] = useState<{ lat: number, lng: number }[]>([]);
+  const [subZones, setSubZones] = useState<{ name: string, polygon: { lat: number, lng: number }[] }[]>([]);
+  const [activePolygonIndex, setActivePolygonIndex] = useState<number>(-1); // -1 means main polygon, 0+ means subZone index
 
   // Geolocation state
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
-  
+
   const [isCapturingGps, setIsCapturingGps] = useState(false);
   const [gpsError, setGpsError] = useState('');
 
@@ -157,6 +180,7 @@ export const ZonesPage = () => {
     defaultValues: {
       name: '',
       polygon: [],
+      subZones: [],
       entryTime: '08:00',
       exitTime: '17:00',
       entryTolerance: 0,
@@ -164,17 +188,24 @@ export const ZonesPage = () => {
     }
   });
 
-  // Sincronizar el estado de currentPoints con react-hook-form
+  // Sincronizar el estado de polígonos con react-hook-form
   useEffect(() => {
     setValue('polygon', currentPoints, { shouldValidate: currentPoints.length > 0 });
   }, [currentPoints, setValue]);
+
+  useEffect(() => {
+    setValue('subZones', subZones, { shouldValidate: true });
+  }, [subZones, setValue]);
 
   const openModal = (zone?: Zone) => {
     if (zone) {
       setEditingZone(zone);
       setCurrentPoints(zone.polygon || []);
+      setSubZones(zone.subZones || []);
+      setActivePolygonIndex(-1);
       setValue('name', zone.name);
       setValue('polygon', zone.polygon || []);
+      setValue('subZones', zone.subZones || []);
       setValue('entryTime', zone.entryTime || '08:00');
       setValue('exitTime', zone.exitTime || '17:00');
       setValue('entryTolerance', zone.entryTolerance || 0);
@@ -182,8 +213,11 @@ export const ZonesPage = () => {
     } else {
       setEditingZone(null);
       setCurrentPoints([]);
+      setSubZones([]);
+      setActivePolygonIndex(-1);
       setValue('name', '');
       setValue('polygon', []);
+      setValue('subZones', []);
       setValue('entryTime', '08:00');
       setValue('exitTime', '17:00');
       setValue('entryTolerance', 0);
@@ -196,6 +230,8 @@ export const ZonesPage = () => {
     setIsModalOpen(false);
     setEditingZone(null);
     setCurrentPoints([]);
+    setSubZones([]);
+    setActivePolygonIndex(-1);
     setUserLocation(null);
   };
 
@@ -221,8 +257,42 @@ export const ZonesPage = () => {
   };
 
   const handleClearMap = () => {
-    setCurrentPoints([]);
+    if (activePolygonIndex === -1) {
+      setCurrentPoints([]);
+    } else {
+      setSubZones(prev => prev.map((sz, i) => i === activePolygonIndex ? { ...sz, polygon: [] } : sz));
+    }
     setGpsError('');
+  };
+
+  const handleAddSubZone = () => {
+    setSubZones([...subZones, { name: '', polygon: [] }]);
+    setActivePolygonIndex(subZones.length);
+  };
+
+  const handleRemoveSubZone = (index: number) => {
+    setSubZones(prev => prev.filter((_, i) => i !== index));
+    if (activePolygonIndex === index) setActivePolygonIndex(-1);
+    else if (activePolygonIndex > index) setActivePolygonIndex(activePolygonIndex - 1);
+  };
+
+  const handleUpdateSubZoneName = (index: number, name: string) => {
+    setSubZones(prev => prev.map((sz, i) => i === index ? { ...sz, name } : sz));
+  };
+
+  const handleMapClick = (lat: number, lng: number) => {
+    const newPoint = { lat, lng };
+    if (activePolygonIndex === -1) {
+      if (currentPoints.length < 4) setCurrentPoints([...currentPoints, newPoint]);
+      else toast.info("Ya has marcado los 4 puntos del polígono principal. Usa limpiar si quieres rehacerlo.");
+    } else {
+      const sz = subZones[activePolygonIndex];
+      if (sz && sz.polygon.length < 4) {
+        setSubZones(prev => prev.map((s, i) => i === activePolygonIndex ? { ...s, polygon: [...s.polygon, newPoint] } : s));
+      } else {
+        toast.info("Ya has marcado los 4 puntos de esta sub-sede.");
+      }
+    }
   };
 
   const handleCaptureCurrentLocation = () => {
@@ -247,20 +317,29 @@ export const ZonesPage = () => {
         if (accuracy > 50) {
           toast.warning(`Precisión baja (${Math.round(accuracy)}m). Intenta salir al aire libre o acercarte a una ventana.`);
         }
-        
+
         const newPoint = { lat: latitude, lng: longitude };
-        
-        // We need to use the functional update to be safe, but since we are reading currentPoints length above, we can just use the state.
-        // Let's use functional update to be 100% sure we append correctly.
-        setCurrentPoints(prev => {
-          if (prev.length >= 4) return prev;
-          return [...prev, newPoint];
-        });
-        
+
+        // Añadir el punto al polígono activo
+        if (activePolygonIndex === -1) {
+          setCurrentPoints(prev => {
+            if (prev.length >= 4) return prev;
+            return [...prev, newPoint];
+          });
+        } else {
+          setSubZones(prev => prev.map((sz, i) => {
+            if (i === activePolygonIndex) {
+              if (sz.polygon.length >= 4) return sz;
+              return { ...sz, polygon: [...sz.polygon, newPoint] };
+            }
+            return sz;
+          }));
+        }
+
         if (mapInstance) {
           mapInstance.setView([latitude, longitude], 19);
         }
-        
+
         toast.success(`Punto capturado con éxito.`);
       },
       (error) => {
@@ -443,7 +522,7 @@ export const ZonesPage = () => {
                     <div className="flex flex-wrap gap-2">
                       {[1, 2, 3, 4, 5, 6, 0].map(day => {
                         const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-                        const currentDays = register('workDays').value || [1,2,3,4,5];
+                        const currentDays = register('workDays').value || [1, 2, 3, 4, 5];
                         // As we use react-hook-form uncontrolled we need a helper or watch
                         return (
                           <label key={day} className="flex items-center space-x-1.5 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100">
@@ -460,52 +539,103 @@ export const ZonesPage = () => {
                     </div>
                   </div>
 
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm">
-                    <h4 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-primary-600" />
-                      Captura de Geocerca (Modo Caminata)
-                    </h4>
-                    <p className="text-slate-600 mb-3 text-xs leading-relaxed">
-                      Párate en una esquina de la oficina y presiona el botón para registrar la coordenada usando el GPS de este dispositivo. Camina a la siguiente esquina y repite hasta completar las 4 esquinas.
-                    </p>
-                    
-                    <div className="bg-white p-3 rounded-lg border border-slate-200 mb-3">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-xs font-semibold text-slate-500 uppercase">Progreso</span>
-                        <span className="text-sm font-bold text-primary-700">{currentPoints.length} / 4 Puntos</span>
+                  {/* Sub-sedes */}
+                  <div className="pt-2 border-t border-slate-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="block text-sm font-medium text-slate-700">Sub-sedes (Sucursales)</label>
+                      <button
+                        type="button"
+                        onClick={handleAddSubZone}
+                        className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center bg-primary-50 px-2 py-1 rounded"
+                      >
+                        <Plus className="w-3 h-3 mr-1" /> Añadir
+                      </button>
+                    </div>
+                    {subZones.length > 0 && (
+                      <div className="space-y-3 mb-4">
+                        {subZones.map((sz, index) => (
+                          <div 
+                            key={`sz-${index}`} 
+                            className={`p-3 rounded-lg border ${activePolygonIndex === index ? 'border-primary-500 bg-primary-50/30' : 'border-slate-200 bg-white'}`}
+                          >
+                            <div className="flex gap-2 mb-2">
+                              <input
+                                type="text"
+                                placeholder="Nombre sub-sede"
+                                value={sz.name}
+                                onChange={(e) => handleUpdateSubZoneName(index, e.target.value)}
+                                className="flex-1 px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:border-primary-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSubZone(index)}
+                                className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-slate-500">{sz.polygon.length} / 4 Puntos GPS</span>
+                              <button
+                                type="button"
+                                onClick={() => setActivePolygonIndex(index)}
+                                className={`px-2 py-1 rounded font-medium ${activePolygonIndex === index ? 'bg-primary-100 text-primary-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                              >
+                                {activePolygonIndex === index ? 'Editando polígono...' : 'Editar polígono'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                        <div 
-                          className="bg-primary-500 h-2 rounded-full transition-all duration-300" 
-                          style={{ width: `${(currentPoints.length / 4) * 100}%` }}
-                        ></div>
-                      </div>
+                    )}
+                  </div>
+
+                  <div className={`p-4 rounded-xl border text-sm transition-colors ${activePolygonIndex === -1 ? 'bg-indigo-50/50 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-primary-600" />
+                        {activePolygonIndex === -1 ? 'Sede Principal' : `Sub-sede ${activePolygonIndex + 1}`}
+                      </h4>
+                      {activePolygonIndex !== -1 && (
+                        <button 
+                          type="button" 
+                          onClick={() => setActivePolygonIndex(-1)}
+                          className="text-xs bg-white border border-slate-200 px-2 py-1 rounded text-slate-600 hover:bg-slate-50"
+                        >
+                          Volver
+                        </button>
+                      )}
                     </div>
                     
+                    <div className="flex items-center justify-between mb-3 text-xs text-slate-600">
+                      <span>Dibuja 4 puntos en el mapa o usa el GPS.</span>
+                      <span className="font-bold text-primary-700 bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                        {activePolygonIndex === -1 ? currentPoints.length : subZones[activePolygonIndex]?.polygon.length || 0} / 4
+                      </span>
+                    </div>
+
                     <button
                       type="button"
                       onClick={handleCaptureCurrentLocation}
-                      disabled={isCapturingGps || currentPoints.length >= 4}
-                      className="w-full flex items-center justify-center px-4 py-3 bg-primary-600 text-white rounded-lg shadow-sm hover:bg-primary-700 hover:shadow-md transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden"
+                      disabled={isCapturingGps || (activePolygonIndex === -1 ? currentPoints.length >= 4 : subZones[activePolygonIndex]?.polygon.length >= 4)}
+                      className="w-full flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg shadow-sm hover:bg-primary-700 hover:shadow-md transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed group text-sm"
                     >
                       {isCapturingGps ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          <span className="text-sm">Obteniendo coordenadas...</span>
+                          Obteniendo...
                         </>
                       ) : (
                         <>
                           <Navigation className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
-                          <span className="text-sm">📍 Guardar mi posición actual</span>
+                          Guardar mi posición actual
                         </>
                       )}
                     </button>
                     {gpsError && <p className="mt-2 text-xs text-red-500 text-center font-medium">{gpsError}</p>}
+                    {errors.polygon && <p className="mt-2 text-xs text-red-500 font-bold bg-red-50 p-2 rounded-lg border border-red-100">{errors.polygon.message}</p>}
 
-                    {errors.polygon && <p className="mt-3 text-xs text-red-500 font-bold bg-red-50 p-2 rounded-lg border border-red-100">{errors.polygon.message}</p>}
-
-                    <div className="mt-4 pt-3 border-t border-slate-200">
-                      <p className="text-xs text-slate-500 mb-2 text-center">O también puedes hacer clic manualmente en el mapa de la derecha.</p>
+                    <div className="mt-3">
                       <button
                         type="button"
                         onClick={handleClearMap}
@@ -546,19 +676,20 @@ export const ZonesPage = () => {
                   <MapContainer
                     center={currentPoints.length > 0 ? [currentPoints[0].lat, currentPoints[0].lng] : [8.6226, -70.2075]} // Default Barinas
                     zoom={15}
-                    style={{ height: '100%', width: '100%', zIndex: 10 }}
+                    style={{ height: '100%', minHeight: '300px', width: '100%', zIndex: 10 }}
                     ref={setMapInstance}
                   >
+                    <MapResizer />
                     <GeocoderControl />
                     <LocationEvents setIsLocating={setIsLocating} setUserLocation={setUserLocation} />
 
                     {/* Layer Híbrido: Satélite + Nombres de Calles y Locales (Google Hybrid) */}
                     <TileLayer
                       attribution='&copy; Google'
-                      url="http://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+                      url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
                       maxZoom={20}
                     />
-                    <MapClickHandler points={currentPoints} setPoints={setCurrentPoints} />
+                    <MapClickHandler onPointAdd={handleMapClick} />
 
                     {/* Isolating conditional and dynamic components in LayerGroups prevents React DOM conflicts (insertBefore errors) */}
                     <LayerGroup>
@@ -571,16 +702,37 @@ export const ZonesPage = () => {
 
                     <LayerGroup>
                       {currentPoints.map((pt, idx) => (
-                        <Marker key={`pt-${pt.lat}-${pt.lng}-${idx}`} position={[pt.lat, pt.lng]}>
-                          <Popup>Punto {idx + 1}</Popup>
+                        <Marker key={`pt-main-${pt.lat}-${pt.lng}-${idx}`} position={[pt.lat, pt.lng]}>
+                          <Popup>Punto Principal {idx + 1}</Popup>
                         </Marker>
                       ))}
+                      {subZones.flatMap((sz, szIdx) => 
+                        sz.polygon.map((pt, idx) => (
+                          <Marker key={`pt-sz${szIdx}-${pt.lat}-${pt.lng}-${idx}`} position={[pt.lat, pt.lng]}>
+                            <Popup>Sede: {sz.name || `Sub-sede ${szIdx+1}`} - Punto {idx + 1}</Popup>
+                          </Marker>
+                        ))
+                      )}
                     </LayerGroup>
 
                     <LayerGroup>
                       {currentPoints.length >= 3 && (
-                        <Polygon positions={currentPoints.map(p => [p.lat, p.lng])} pathOptions={{ color: '#4f46e5', fillColor: '#6366f1', fillOpacity: 0.3 }} />
+                        <Polygon positions={currentPoints.map(p => [p.lat, p.lng])} pathOptions={{ color: '#4f46e5', fillColor: '#6366f1', fillOpacity: activePolygonIndex === -1 ? 0.4 : 0.1, weight: activePolygonIndex === -1 ? 3 : 1 }} />
                       )}
+                      {subZones.map((sz, idx) => (
+                        sz.polygon.length >= 3 && (
+                          <Polygon 
+                            key={`poly-sz-${idx}`}
+                            positions={sz.polygon.map(p => [p.lat, p.lng])} 
+                            pathOptions={{ 
+                              color: '#10b981', // Verde para sub-sedes
+                              fillColor: '#34d399', 
+                              fillOpacity: activePolygonIndex === idx ? 0.4 : 0.1,
+                              weight: activePolygonIndex === idx ? 3 : 1 
+                            }} 
+                          />
+                        )
+                      ))}
                     </LayerGroup>
                   </MapContainer>
 

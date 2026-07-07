@@ -58,7 +58,7 @@ interface EnrichedRecord extends AttendanceRecord {
 export const AttendancePage = () => {
   const [activeTab, setActiveTab] = useState<'diario' | 'semanal'>('diario');
   // Filtros de UI
-  const [filterDate, setFilterDate] = useState<string>(format(new Date(), 'yyyy-MM-dd')); // Hoy por defecto
+  const [filterMonth, setFilterMonth] = useState<string>(format(new Date(), 'yyyy-MM')); // Este mes por defecto
   const [filterEmployee, setFilterEmployee] = useState<string>('');
   const [filterZone] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'late' | 'ontime'>('all');
@@ -255,8 +255,8 @@ export const AttendancePage = () => {
   // Filtrado de registros + Inyección de Permisos (Registros Virtuales)
   const filteredRecords = useMemo(() => {
     const baseFiltered = enrichedRecords.filter(record => {
-      // Filtro por Fecha
-      if (filterDate && record.date !== filterDate) return false;
+      // Filtro por Mes
+      if (filterMonth && !record.date.startsWith(filterMonth)) return false;
 
       // Filtro por Empleado
       if (filterEmployee) {
@@ -276,15 +276,15 @@ export const AttendancePage = () => {
       return true;
     });
 
-    // Inyectar permisos aprobados como registros virtuales (solo si hay fecha específica filtrada)
-    if (filterDate) {
+    // Inyectar permisos aprobados como registros virtuales (solo si hay mes específico filtrado)
+    if (filterMonth) {
       const approvedLeaves = allLeaves.filter(l => l.status === 'approved');
-      
+
       approvedLeaves.forEach(leave => {
         const start = leave.startDate || (leave as any).date;
         const end = leave.endDate || (leave as any).date;
-        
-        if (start && end && filterDate >= start && filterDate <= end) {
+
+        if (start && end && (start.startsWith(filterMonth) || end.startsWith(filterMonth))) {
           const emp = employees.find(e => e.uid === leave.userId);
           if (!emp) return;
 
@@ -297,17 +297,17 @@ export const AttendancePage = () => {
           }
           if (filterZone && emp.zoneId !== filterZone) return;
           if (filterStatus === 'late' || filterStatus === 'ontime') return; // Los permisos no son tardanzas
-          
+
           // Verificamos que no tenga un registro real ese mismo día
-          const hasRecord = baseFiltered.some(r => r.userId === leave.userId);
-          
-          if (!hasRecord) {
+          const hasRecord = baseFiltered.some(r => r.userId === leave.userId && r.date === start);
+
+          if (!hasRecord && start.startsWith(filterMonth)) {
             const zone = zones.find(z => z.id === emp.zoneId);
             baseFiltered.push({
-              id: `leave-${leave.id}-${filterDate}`,
+              id: `leave-${leave.id}-${start}`,
               userId: leave.userId,
               zoneId: emp.zoneId || '',
-              date: filterDate,
+              date: start,
               checkIn: '',
               checkOut: '',
               checkInStatus: 'on-time',
@@ -321,7 +321,7 @@ export const AttendancePage = () => {
               shiftEntry: '',
               shiftExit: '',
               shiftLunch: '',
-              formattedDate: filterDate,
+              formattedDate: start,
               formattedCheckIn: '--:--',
               formattedCheckOut: '--:--',
               delayText: `PERMISO APROBADO: ${leave.reason}`,
@@ -335,7 +335,7 @@ export const AttendancePage = () => {
     }
 
     return baseFiltered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.checkIn || '').localeCompare(a.checkIn || ''));
-  }, [enrichedRecords, filterDate, filterEmployee, filterZone, filterStatus, allLeaves, employees, zones]);
+  }, [enrichedRecords, filterMonth, filterEmployee, filterZone, filterStatus, allLeaves, employees, zones]);
 
   // Cálculos para KPIs
   const kpis = useMemo(() => {
@@ -366,7 +366,7 @@ export const AttendancePage = () => {
         const matchesId = (emp.documentId || '').toLowerCase().includes(s);
         if (!matchesName && !matchesId) return;
       }
-      
+
       summaryMap.set(emp.uid, {
         'Empleado': emp.displayName || 'Empleado',
         'Cédula': emp.documentId || '',
@@ -474,34 +474,25 @@ export const AttendancePage = () => {
     });
 
     approvedLeaves.forEach(leave => {
-       if (!summaryMap.has(leave.userId)) return;
-       const summary = summaryMap.get(leave.userId);
-       const start = leave.startDate || (leave as any).date;
-       const end = leave.endDate || (leave as any).date;
-       const zone = zones.find(z => z.id === summary['_zoneId']);
-       const workDays = zone?.workDays || [1,2,3,4,5];
-       
-       if (filterDate) {
-         if (filterDate >= start && filterDate <= end) {
-            const dateObj = new Date(`${filterDate}T12:00:00`);
-            if (workDays.includes(dateObj.getDay())) {
-               if (!summary['_diasSet'].has(filterDate)) {
-                  summary['Días Justificados'] += 1;
-               }
-            }
-         }
-       } else {
-         const startDateObj = new Date(`${start}T12:00:00`);
-         const endDateObj = new Date(`${end}T12:00:00`);
-         for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
-            const dateStr = format(d, 'yyyy-MM-dd');
-            if (workDays.includes(d.getDay())) {
-               if (!summary['_diasSet'].has(dateStr)) {
-                  summary['Días Justificados'] += 1;
-               }
-            }
-         }
-       }
+      if (!summaryMap.has(leave.userId)) return;
+      const summary = summaryMap.get(leave.userId);
+      const start = leave.startDate || (leave as any).date;
+      const end = leave.endDate || (leave as any).date;
+
+      if (filterMonth) {
+        if (start?.startsWith(filterMonth) || end?.startsWith(filterMonth)) {
+          summary['Días Justificados'] += 1;
+        }
+      } else {
+        const startDateObj = new Date(`${start}T12:00:00`);
+        const endDateObj = new Date(`${end}T12:00:00`);
+        for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
+          const dateStr = format(d, 'yyyy-MM-dd');
+          if (!summary['_diasSet'].has(dateStr)) {
+            summary['Días Justificados'] += 1;
+          }
+        }
+      }
     });
 
     return Array.from(summaryMap.values())
@@ -523,7 +514,7 @@ export const AttendancePage = () => {
 
   const handleExportExcel = () => {
     if (filteredRecords.length === 0) {
-      toast.error('No hay registros para exportar en el rango actual.');
+      toast.error('No hay registros para exportar en el mes actual.');
       return;
     }
 
@@ -557,27 +548,27 @@ export const AttendancePage = () => {
     XLSX.utils.book_append_sheet(wb, wsDetail, "Detalle de Asistencias");
     XLSX.utils.book_append_sheet(wb, wsSummary, "Resumen de Nómina");
 
-    XLSX.writeFile(wb, `Reporte_Asistencia_${filterDate || 'Historico'}.xlsx`);
-    toast.success('Reporte Excel exportado correctamente');
+    XLSX.writeFile(wb, `Reporte_Mensual_${filterMonth || 'Historico'}.xlsx`);
+    toast.success('Reporte Excel Mensual exportado correctamente');
   };
 
   const handleExportPDF = () => {
     if (filteredRecords.length === 0) {
-      toast.error('No hay registros para exportar en el rango actual.');
+      toast.error('No hay registros para exportar en el mes actual.');
       return;
     }
 
     const doc = new jsPDF('landscape');
-    const title = `Reporte de Asistencia - ${filterDate || 'Histórico'}`;
-    
+    const title = `Reporte Mensual de Asistencia - ${filterMonth || 'Histórico'}`;
+
     // Configuración de estilo global
     doc.setFontSize(16);
     doc.text(title, 14, 15);
-    
+
     // --- 1. Tabla de Resumen ---
     doc.setFontSize(12);
-    doc.text('Resumen por Empleado', 14, 25);
-    
+    doc.text('Resumen por Empleado (Mensual)', 14, 25);
+
     const summaryData = generateSummaryData();
     const summaryColumns = [
       'Empleado', 'Cédula', 'Días Trab.', 'Días Justif.', 'Fechas', 'Total Hrs', 'Tardanza (Min)', 'Hrs Extras'
@@ -607,7 +598,7 @@ export const AttendancePage = () => {
     const finalY = (doc as any).lastAutoTable.finalY || 30;
     doc.addPage();
     doc.setFontSize(12);
-    doc.text('Detalle de Registros', 14, 15);
+    doc.text('Detalle Mensual de Registros', 14, 15);
 
     const detailColumns = [
       'Empleado', 'Cédula', 'Fecha', 'Entrada', 'Salida', 'Estado', 'Sede', 'Turno'
@@ -632,15 +623,19 @@ export const AttendancePage = () => {
       styles: { fontSize: 8 }
     });
 
-    doc.save(`Reporte_Asistencia_${filterDate || 'Historico'}.pdf`);
-    toast.success('Reporte PDF exportado correctamente');
+    doc.save(`Reporte_Mensual_${filterMonth || 'Historico'}.pdf`);
+    toast.success('Reporte PDF Mensual exportado correctamente');
   };
 
-  // Botones Rápidos de Fecha
-  const setQuickDate = (type: 'today' | 'yesterday' | 'all') => {
-    if (type === 'today') setFilterDate(format(new Date(), 'yyyy-MM-dd'));
-    if (type === 'yesterday') setFilterDate(format(subDays(new Date(), 1), 'yyyy-MM-dd'));
-    if (type === 'all') setFilterDate('');
+  // Botones Rápidos de Mes
+  const setQuickDate = (type: 'thisMonth' | 'lastMonth' | 'all') => {
+    const today = new Date();
+    if (type === 'thisMonth') setFilterMonth(format(today, 'yyyy-MM'));
+    if (type === 'lastMonth') {
+      const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      setFilterMonth(format(lastMonth, 'yyyy-MM'));
+    }
+    if (type === 'all') setFilterMonth('');
   };
 
   // Table setup
@@ -659,6 +654,15 @@ export const AttendancePage = () => {
             <div className="text-xs text-slate-500">{info.row.original.employeeEmail}</div>
           </div>
         </div>
+      )
+    }),
+    columnHelper.display({
+      id: 'dateHeader',
+      header: 'Fecha',
+      cell: info => (
+        <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded">
+          {info.row.original.formattedDate}
+        </span>
       )
     }),
     columnHelper.display({
@@ -682,7 +686,7 @@ export const AttendancePage = () => {
       header: 'Progreso del Día',
       cell: info => {
         const r = info.row.original;
-        
+
         if (r.isLeave) {
           return (
             <div className="flex flex-col space-y-1.5 min-w-[200px]">
@@ -820,14 +824,14 @@ export const AttendancePage = () => {
             className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 bg-[#49769F] text-white rounded-none btn-angled shadow-sm hover:brightness-110 transition-colors font-medium text-sm"
           >
             <FileSpreadsheet className="w-4 h-4 mr-2" />
-            Exportar Excel
+            Exportar Excel (Mensual)
           </button>
           <button
             onClick={handleExportPDF}
             className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-none btn-angled shadow-sm hover:brightness-110 transition-colors font-medium text-sm"
           >
             <FileSpreadsheet className="w-4 h-4 mr-2" />
-            Exportar PDF
+            Exportar PDF (Mensual)
           </button>
         </div>
       </div>
@@ -836,304 +840,302 @@ export const AttendancePage = () => {
       <div className="flex border-b border-slate-200 gap-6">
         <button
           onClick={() => setActiveTab('diario')}
-          className={`py-3 px-1 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'diario' ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
+          className={`py-3 px-1 font-semibold text-sm border-b-2 transition-colors ${activeTab === 'diario' ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
         >
-          Registro Diario
+          Registro de Asistencias
         </button>
         <button
           onClick={() => setActiveTab('semanal')}
-          className={`py-3 px-1 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'semanal' ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
+          className={`py-3 px-1 font-semibold text-sm border-b-2 transition-colors ${activeTab === 'semanal' ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
         >
-          Reporte Semanal (Ausencias)
+          Ausencias
         </button>
       </div>
 
       {activeTab === 'diario' ? (
         <>
           {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Users className="w-16 h-16 text-slate-600" />
-          </div>
-          <p className="text-sm font-semibold text-slate-500 mb-1 relative z-10">Total Asistencias</p>
-          <p className="text-3xl font-bold text-slate-900 relative z-10">{kpis.total}</p>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-emerald-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <CheckCircle2 className="w-16 h-16 text-emerald-600" />
-          </div>
-          <p className="text-sm font-semibold text-emerald-600 mb-1 relative z-10">A Tiempo</p>
-          <div className="flex items-baseline gap-2 relative z-10">
-            <p className="text-3xl font-bold text-emerald-700">{kpis.onTimeCount}</p>
-            <p className="text-sm font-medium text-emerald-500">({kpis.onTimePercentage}%)</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-red-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <AlertCircle className="w-16 h-16 text-red-600" />
-          </div>
-          <p className="text-sm font-semibold text-red-600 mb-1 relative z-10">Tardanzas</p>
-          <div className="flex items-baseline gap-2 relative z-10">
-            <p className="text-3xl font-bold text-red-700">{kpis.lateCount}</p>
-            <p className="text-sm font-medium text-red-500">({kpis.latePercentage}%)</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-amber-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Clock className="w-16 h-16 text-amber-600" />
-          </div>
-          <p className="text-sm font-semibold text-amber-600 mb-1 relative z-10">Salidas Tempranas</p>
-          <p className="text-3xl font-bold text-amber-700 relative z-10">{kpis.earlyOutCount}</p>
-        </div>
-      </div>
-
-      {/* Control Bar (Filters) */}
-      <div className="bg-white rounded-none border border-slate-200 shadow-sm p-4 flex flex-col md:flex-row gap-4 items-center justify-between w-full">
-        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          <button
-            onClick={() => setQuickDate('today')}
-            className={`whitespace-nowrap px-4 py-2 rounded-none btn-angled text-sm font-medium transition-colors ${filterDate === format(new Date(), 'yyyy-MM-dd') ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'} hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200`}
-          >
-            Hoy
-          </button>
-          <button
-            onClick={() => setQuickDate('yesterday')}
-            className={`whitespace-nowrap px-4 py-2 rounded-none btn-angled text-sm font-medium transition-colors ${filterDate === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'} hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200`}
-          >
-            Ayer
-          </button>
-          <button
-            onClick={() => setQuickDate('all')}
-            className={`whitespace-nowrap px-4 py-2 rounded-none btn-angled text-sm font-medium transition-colors ${filterDate === '' ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'} hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200`}
-          >
-            Todo el Historial
-          </button>
-          <div className="h-6 w-px bg-slate-200 mx-2 hidden md:block"></div>
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-        </div>
-
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-48">
-            <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'late' | 'ontime')}
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none"
-            >
-              <option value="all">Todos los estados</option>
-              <option value="late">Llegadas Tarde</option>
-              <option value="ontime">A Tiempo</option>
-            </select>
-          </div>
-
-          <div className="relative flex-1 md:w-48">
-            <UserCircle className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar Cédula o Nombre..."
-              value={filterEmployee}
-              onChange={(e) => setFilterEmployee(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Table Content */}
-      <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col w-full min-h-[500px]">
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-sm text-left min-w-[800px] table-gradient-rows">
-            <thead className="bg-white text-slate-700/80 font-semibold">
-              {table.getHeaderGroups().map(headerGroup => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map(header => (
-                    <th key={header.id} className="px-6 py-4">
-                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary-500" />
-                    <p className="text-slate-500 font-medium">Cargando registros...</p>
-                  </td>
-                </tr>
-              ) : filteredRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
-                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                      <ArrowRightLeft className="w-8 h-8 text-slate-300" />
-                    </div>
-                    <p className="text-slate-600 font-bold text-lg">No hay registros</p>
-                    <p className="text-slate-500 text-sm mt-1">Prueba ajustando los filtros de fecha o empleado.</p>
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map(row => (
-                  <tr key={row.id} className="hover:bg-slate-50/50 transition-colors group">
-                    {row.getVisibleCells().map(cell => (
-                      <td key={cell.id} className="px-6 py-3">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {filteredRecords.length > 0 && (
-          <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-white">
-            <div className="text-sm text-slate-500 font-medium">
-              Mostrando {table.getRowModel().rows.length} de {filteredRecords.length} registros
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-                className="p-2 border border-slate-200 bg-white rounded-xl text-slate-600 hover:bg-slate-50 hover:text-primary-600 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-slate-600 transition-colors shadow-sm"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-sm text-slate-700 font-bold px-4">
-                Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
-              </span>
-              <button
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-                className="p-2 border border-slate-200 bg-white rounded-xl text-slate-600 hover:bg-slate-50 hover:text-primary-600 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-slate-600 transition-colors shadow-sm"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Manual Check-in Modal */}
-      {isManualModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center">
-                <UserPlus className="w-5 h-5 mr-2 text-primary-600" />
-                Fichaje Manual
-              </h3>
-              <button
-                onClick={() => setIsManualModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 hover:bg-slate-50 p-1 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Users className="w-16 h-16 text-slate-600" />
+              </div>
+              <p className="text-sm font-semibold text-slate-500 mb-1 relative z-10">Total Asistencias</p>
+              <p className="text-3xl font-bold text-slate-900 relative z-10">{kpis.total}</p>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Buscar Empleado</label>
-                <input
-                  type="text"
-                  placeholder="Escribe el nombre o cédula para filtrar..."
-                  value={manualSearch}
-                  onChange={(e) => setManualSearch(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 mb-2"
-                />
+            <div className="bg-white rounded-2xl p-5 border border-emerald-100 shadow-sm relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <CheckCircle2 className="w-16 h-16 text-emerald-600" />
+              </div>
+              <p className="text-sm font-semibold text-emerald-600 mb-1 relative z-10">A Tiempo</p>
+              <div className="flex items-baseline gap-2 relative z-10">
+                <p className="text-3xl font-bold text-emerald-700">{kpis.onTimeCount}</p>
+                <p className="text-sm font-medium text-emerald-500">({kpis.onTimePercentage}%)</p>
+              </div>
+            </div>
 
+            <div className="bg-white rounded-2xl p-5 border border-red-100 shadow-sm relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <AlertCircle className="w-16 h-16 text-red-600" />
+              </div>
+              <p className="text-sm font-semibold text-red-600 mb-1 relative z-10">Tardanzas</p>
+              <div className="flex items-baseline gap-2 relative z-10">
+                <p className="text-3xl font-bold text-red-700">{kpis.lateCount}</p>
+                <p className="text-sm font-medium text-red-500">({kpis.latePercentage}%)</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 border border-amber-100 shadow-sm relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Clock className="w-16 h-16 text-amber-600" />
+              </div>
+              <p className="text-sm font-semibold text-amber-600 mb-1 relative z-10">Salidas Tempranas</p>
+              <p className="text-3xl font-bold text-amber-700 relative z-10">{kpis.earlyOutCount}</p>
+            </div>
+          </div>
+
+          {/* Control Bar (Filters) */}
+          <div className="bg-white rounded-none border border-slate-200 shadow-sm p-4 flex flex-col md:flex-row gap-4 items-center justify-between w-full">
+            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+              <button
+                onClick={() => setQuickDate('thisMonth')}
+                className={`whitespace-nowrap px-4 py-2 rounded-none btn-angled text-sm font-medium transition-colors ${filterMonth === format(new Date(), 'yyyy-MM') ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'} hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200`}
+              >
+                Este Mes
+              </button>
+              <button
+                onClick={() => setQuickDate('lastMonth')}
+                className={`whitespace-nowrap px-4 py-2 rounded-none btn-angled text-sm font-medium transition-colors ${filterMonth === format(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1), 'yyyy-MM') ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'} hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200`}
+              >
+                Mes Anterior
+              </button>
+              <button
+                onClick={() => setQuickDate('all')}
+                className={`whitespace-nowrap px-4 py-2 rounded-none btn-angled text-sm font-medium transition-colors ${filterMonth === '' ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'} hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200`}
+              >
+                Todo el Historial
+              </button>
+              <div className="h-6 w-px bg-slate-200 mx-2 hidden md:block"></div>
+              <input
+                type="month"
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+                className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="relative flex-1 md:w-48">
+                <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <select
-                  value={manualUserId}
-                  onChange={(e) => setManualUserId(e.target.value)}
-                  size={4}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 overflow-y-auto"
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as 'all' | 'late' | 'ontime')}
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none"
                 >
-                  {employees
-                    .filter(emp => {
-                      if (!manualSearch) return true;
-                      const s = manualSearch.toLowerCase();
-                      return emp.displayName.toLowerCase().includes(s) || (emp.documentId && emp.documentId.toLowerCase().includes(s));
-                    })
-                    .map(emp => (
-                      <option key={emp.uid} value={emp.uid} className="py-1">
-                        {emp.documentId ? `V-${emp.documentId} - ` : ''}{emp.displayName}
-                      </option>
-                    ))}
+                  <option value="all">Todos los estados</option>
+                  <option value="late">Llegadas Tarde</option>
+                  <option value="ontime">A Tiempo</option>
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Tipo de Registro</label>
-                  <select
-                    value={manualType}
-                    onChange={(e) => setManualType(e.target.value as 'in' | 'out')}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="in">Entrada</option>
-                    <option value="out">Salida</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Hora</label>
-                  <input
-                    type="time"
-                    value={manualTime}
-                    onChange={(e) => setManualTime(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Fecha</label>
+              <div className="relative flex-1 md:w-48">
+                <UserCircle className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
-                  type="date"
-                  value={manualDate}
-                  onChange={(e) => setManualDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  type="text"
+                  placeholder="Buscar Cédula o Nombre..."
+                  value={filterEmployee}
+                  onChange={(e) => setFilterEmployee(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
             </div>
-
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-              <button
-                onClick={() => setIsManualModalOpen(false)}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => manualRecordMutation.mutate()}
-                disabled={manualRecordMutation.isPending || !manualUserId}
-                className="inline-flex items-center justify-center px-4 py-2 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-[#0A4174] text-white rounded-none btn-angled shadow-sm hover:brightness-110 active:scale-95 transition-all duration-200"
-              >
-                {manualRecordMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                )}
-                <span className="font-semibold">{manualType === 'in' ? 'Guardar Entrada' : 'Guardar Salida'}</span>
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+
+          {/* Table Content */}
+          <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col w-full min-h-[500px]">
+            <div className="overflow-x-auto flex-1">
+              <table className="w-full text-sm text-left min-w-[800px] table-gradient-rows">
+                <thead className="bg-white text-slate-700/80 font-semibold">
+                  {table.getHeaderGroups().map(headerGroup => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map(header => (
+                        <th key={header.id} className="px-6 py-4">
+                          {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-16 text-center">
+                        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-primary-500" />
+                        <p className="text-slate-500 font-medium">Cargando registros...</p>
+                      </td>
+                    </tr>
+                  ) : filteredRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-16 text-center">
+                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                          <ArrowRightLeft className="w-8 h-8 text-slate-300" />
+                        </div>
+                        <p className="text-slate-600 font-bold text-lg">No hay registros</p>
+                        <p className="text-slate-500 text-sm mt-1">Prueba ajustando los filtros de fecha o empleado.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    table.getRowModel().rows.map(row => (
+                      <tr key={row.id} className="hover:bg-slate-50/50 transition-colors group">
+                        {row.getVisibleCells().map(cell => (
+                          <td key={cell.id} className="px-6 py-3">
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {filteredRecords.length > 0 && (
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-white">
+                <div className="text-sm text-slate-500 font-medium">
+                  Mostrando {table.getRowModel().rows.length} de {filteredRecords.length} registros
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => table.previousPage()}
+                    disabled={!table.getCanPreviousPage()}
+                    className="p-2 border border-slate-200 bg-white rounded-xl text-slate-600 hover:bg-slate-50 hover:text-primary-600 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-slate-600 transition-colors shadow-sm"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-sm text-slate-700 font-bold px-4">
+                    Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
+                  </span>
+                  <button
+                    onClick={() => table.nextPage()}
+                    disabled={!table.getCanNextPage()}
+                    className="p-2 border border-slate-200 bg-white rounded-xl text-slate-600 hover:bg-slate-50 hover:text-primary-600 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-slate-600 transition-colors shadow-sm"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Manual Check-in Modal */}
+          {isManualModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+                <div className="flex justify-between items-center p-6 border-b border-slate-100">
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center">
+                    <UserPlus className="w-5 h-5 mr-2 text-primary-600" />
+                    Fichaje Manual
+                  </h3>
+                  <button
+                    onClick={() => setIsManualModalOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 hover:bg-slate-50 p-1 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Buscar Empleado</label>
+                    <input
+                      type="text"
+                      placeholder="Escribe el nombre o cédula para filtrar..."
+                      value={manualSearch}
+                      onChange={(e) => setManualSearch(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 mb-2"
+                    />
+
+                    <select
+                      value={manualUserId}
+                      onChange={(e) => setManualUserId(e.target.value)}
+                      size={4}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 overflow-y-auto"
+                    >
+                      {employees
+                        .filter(emp => {
+                          if (!manualSearch) return true;
+                          const s = manualSearch.toLowerCase();
+                          return emp.displayName.toLowerCase().includes(s) || (emp.documentId && emp.documentId.toLowerCase().includes(s));
+                        })
+                        .map(emp => (
+                          <option key={emp.uid} value={emp.uid} className="py-1">
+                            {emp.documentId ? `V-${emp.documentId} - ` : ''}{emp.displayName}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Tipo de Registro</label>
+                      <select
+                        value={manualType}
+                        onChange={(e) => setManualType(e.target.value as 'in' | 'out')}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="in">Entrada</option>
+                        <option value="out">Salida</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Hora</label>
+                      <input
+                        type="time"
+                        value={manualTime}
+                        onChange={(e) => setManualTime(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Fecha</label>
+                    <input
+                      type="date"
+                      value={manualDate}
+                      onChange={(e) => setManualDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                  <button
+                    onClick={() => setIsManualModalOpen(false)}
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => manualRecordMutation.mutate()}
+                    disabled={manualRecordMutation.isPending || !manualUserId}
+                    className="inline-flex items-center justify-center px-4 py-2 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-[#0A4174] text-white rounded-none btn-angled shadow-sm hover:brightness-110 active:scale-95 transition-all duration-200"
+                  >
+                    {manualRecordMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                    )}
+                    <span className="font-semibold">{manualType === 'in' ? 'Guardar Entrada' : 'Guardar Salida'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <WeeklyReport />

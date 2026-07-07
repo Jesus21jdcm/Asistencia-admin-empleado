@@ -26,10 +26,16 @@ export interface Shift {
   entryTolerance?: number; // Tolerancia en minutos para la entrada
 }
 
+export interface SubZone {
+  name: string;
+  polygon: { lat: number; lng: number }[];
+}
+
 export interface Zone {
   id: string;
   name: string;
   polygon: { lat: number; lng: number }[]; // Arreglo de 4 puntos
+  subZones?: SubZone[]; // Opcional para sedes secundarias
   entryTime?: string; // Formato HH:mm
   exitTime?: string; // Formato HH:mm
   entryTolerance?: number; // Tolerancia en minutos

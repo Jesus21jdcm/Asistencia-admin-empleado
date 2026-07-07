@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, MapPin, Users, CalendarCheck, FileText, LogOut, Clock, Menu, X, Search } from 'lucide-react';
+import { LayoutDashboard, MapPin, Users, CalendarCheck, FileText, LogOut, Clock, Menu, X, Search, BarChart3 } from 'lucide-react';
 import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services/authService';
 import { attendanceService } from '../services/attendanceService';
@@ -19,6 +19,7 @@ const navItems = [
   { name: 'Empleados', path: '/employees', icon: Users },
   { name: 'Asistencia', path: '/attendance', icon: CalendarCheck },
   { name: 'Permisos', path: '/leaves', icon: FileText },
+  { name: 'Estadísticas', path: '/statistics', icon: BarChart3 },
 ];
 
 export const AdminLayout: React.FC = () => {
@@ -102,8 +103,8 @@ export const AdminLayout: React.FC = () => {
         </nav>
 
         {/* User Profile */}
-        <div className="p-4 border-t border-slate-100">
-          <div className="flex items-center p-3 rounded-xl bg-slate-50 border border-slate-100">
+        <div className="p-4 border-t border-slate-100 flex items-center gap-2">
+          <div className="flex items-center p-3 rounded-xl bg-slate-50 border border-slate-100 flex-1 min-w-0">
             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-semibold flex-shrink-0">
               {user?.displayName?.charAt(0).toUpperCase() || 'A'}
             </div>
@@ -112,6 +113,13 @@ export const AdminLayout: React.FC = () => {
               <p className="text-xs text-slate-500 truncate">{user?.email}</p>
             </div>
           </div>
+          <button
+            onClick={handleLogout}
+            className="md:hidden p-3 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-xl transition-colors shrink-0"
+            title="Cerrar Sesión"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
         </div>
       </aside>
 

@@ -16,6 +16,7 @@ import { AttendancePage } from '../pages/attendance/AttendancePage';
 import { EmployeePage } from '../pages/employee/EmployeePage';
 import { LeavesPage } from '../pages/leaves/LeavesPage';
 import { LandingPage } from '../pages/landing/LandingPage';
+import { StatisticsPage } from '../pages/statistics/StatisticsPage';
 
 // Placeholder Pages for routing
 const PlaceholderPage = ({ title }: { title: string }) => (
@@ -46,6 +47,7 @@ export const AppRouter: React.FC = () => {
               <Route path="/employees" element={<EmployeesPage />} />
               <Route path="/attendance" element={<AttendancePage />} />
               <Route path="/leaves" element={<LeavesPage />} />
+              <Route path="/statistics" element={<StatisticsPage />} />
             </Route>
           </Route>
 

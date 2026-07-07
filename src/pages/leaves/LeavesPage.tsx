@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { attendanceService } from '../../services/attendanceService';
 import { employeeService } from '../../services/employeeService';
-import { CheckCircle, XCircle, FileText, Loader2, Search } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, Loader2, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -60,6 +60,21 @@ export const LeavesPage = () => {
     updateMutation.mutate({ id, status });
   };
 
+  const deleteAllMutation = useMutation({
+    mutationFn: attendanceService.deleteAllLeaveRequests,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leaves'] });
+      toast.success('Historial vaciado correctamente');
+    },
+    onError: (error: Error) => toast.error(error.message || 'Error al vaciar el historial'),
+  });
+
+  const handleDeleteAll = () => {
+    if (window.confirm('¿Estás seguro de que deseas eliminar TODAS las justificaciones y permisos? Esta acción no se puede deshacer.')) {
+      deleteAllMutation.mutate();
+    }
+  };
+
   const getEmployeeName = (userId: string) => {
     const employee = employees.find(e => e.uid === userId);
     if (!employee) return 'Usuario Desconocido';
@@ -94,6 +109,18 @@ export const LeavesPage = () => {
         <div>
           <h2 className="text-2xl font-semibold tracking-wide text-slate-900 tracking-tight">Permisos y Justificaciones</h2>
         </div>
+        <button
+          onClick={handleDeleteAll}
+          disabled={deleteAllMutation.isPending || leaves.length === 0}
+          className="inline-flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-none btn-angled shadow-sm hover:brightness-110 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {deleteAllMutation.isPending ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Trash2 className="w-4 h-4 mr-2" />
+          )}
+          Vaciar Historial
+        </button>
       </div>
 
       {/* Control Bar (Filters) */}

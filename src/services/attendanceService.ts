@@ -107,5 +107,13 @@ export const attendanceService = {
     const { doc, updateDoc } = await import('firebase/firestore');
     const leaveRef = doc(db, 'justificaciones', id);
     await updateDoc(leaveRef, { status });
+  },
+
+  deleteAllLeaveRequests: async (): Promise<void> => {
+    const { doc, deleteDoc } = await import('firebase/firestore');
+    const q = query(collection(db, 'justificaciones'));
+    const querySnapshot = await getDocs(q);
+    const deletePromises = querySnapshot.docs.map(document => deleteDoc(doc(db, 'justificaciones', document.id)));
+    await Promise.all(deletePromises);
   }
 };
