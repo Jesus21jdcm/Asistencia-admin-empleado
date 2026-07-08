@@ -88,7 +88,7 @@ export const StatisticsPage: React.FC = () => {
   const renderCustomizedLabel = (props: any) => {
     const { x, y, value } = props;
     return (
-      <text x={x} y={y - 15} fill="#4f46e5" fontSize={14} fontWeight="bold" textAnchor="middle">
+      <text x={x} y={y - 15} fill="#0A4174" fontSize={14} fontWeight="bold" textAnchor="middle">
         {value}
       </text>
     );
@@ -112,7 +112,7 @@ export const StatisticsPage: React.FC = () => {
         {/* Gráfica Semanal */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm overflow-hidden relative">
           <div className="flex items-center gap-2 mb-8">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+            <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center text-primary-700">
               <CalendarDays className="w-4 h-4" />
             </div>
             <h3 className="text-lg font-semibold text-slate-800">Asistencia de la Semana</h3>
@@ -126,8 +126,8 @@ export const StatisticsPage: React.FC = () => {
               >
                 <defs>
                   <linearGradient id="colorSemana" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#0A4174" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#0A4174" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -147,19 +147,19 @@ export const StatisticsPage: React.FC = () => {
                 <Tooltip 
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
                   labelStyle={{ fontWeight: 'bold', color: '#334155', marginBottom: '4px' }}
-                  itemStyle={{ color: '#4f46e5', fontWeight: 600 }}
-                  cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' }}
+                  itemStyle={{ color: '#0A4174', fontWeight: 600 }}
+                  cursor={{ stroke: '#BDD8E9', strokeWidth: 1, strokeDasharray: '3 3' }}
                 />
                 <Area 
                   type="monotone" 
                   dataKey="asistencias" 
                   name="Asistencias" 
-                  stroke="#4f46e5" 
+                  stroke="#0A4174" 
                   strokeWidth={3}
                   fillOpacity={1} 
                   fill="url(#colorSemana)"
-                  activeDot={{ r: 7, fill: '#fff', stroke: '#4f46e5', strokeWidth: 3 }} 
-                  dot={{ r: 5, fill: '#fff', stroke: '#4f46e5', strokeWidth: 3 }}
+                  activeDot={{ r: 7, fill: '#fff', stroke: '#0A4174', strokeWidth: 3 }} 
+                  dot={{ r: 5, fill: '#fff', stroke: '#0A4174', strokeWidth: 3 }}
                 >
                   <LabelList dataKey="asistencias" content={renderCustomizedLabel} />
                 </Area>
@@ -171,7 +171,7 @@ export const StatisticsPage: React.FC = () => {
         {/* Gráfica Mensual */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm overflow-hidden relative">
           <div className="flex items-center gap-2 mb-8">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+            <div className="w-8 h-8 rounded-lg bg-[#4E8EA2]/10 flex items-center justify-center text-[#4E8EA2]">
               <Calendar className="w-4 h-4" />
             </div>
             <h3 className="text-lg font-semibold text-slate-800">Asistencia del Mes</h3>
@@ -185,8 +185,8 @@ export const StatisticsPage: React.FC = () => {
               >
                 <defs>
                   <linearGradient id="colorMes" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#4E8EA2" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#4E8EA2" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -206,19 +206,19 @@ export const StatisticsPage: React.FC = () => {
                 <Tooltip 
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
                   labelStyle={{ fontWeight: 'bold', color: '#334155', marginBottom: '4px' }}
-                  itemStyle={{ color: '#4f46e5', fontWeight: 600 }}
-                  cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' }}
+                  itemStyle={{ color: '#4E8EA2', fontWeight: 600 }}
+                  cursor={{ stroke: '#BDD8E9', strokeWidth: 1, strokeDasharray: '3 3' }}
                 />
                 <Area 
                   type="monotone" 
                   dataKey="asistencias" 
                   name="Asistencias" 
-                  stroke="#4f46e5" 
+                  stroke="#4E8EA2" 
                   strokeWidth={3}
                   fillOpacity={1} 
                   fill="url(#colorMes)"
-                  activeDot={{ r: 7, fill: '#fff', stroke: '#4f46e5', strokeWidth: 3 }} 
-                  dot={{ r: 3, fill: '#fff', stroke: '#4f46e5', strokeWidth: 2 }}
+                  activeDot={{ r: 7, fill: '#fff', stroke: '#4E8EA2', strokeWidth: 3 }} 
+                  dot={{ r: 3, fill: '#fff', stroke: '#4E8EA2', strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>

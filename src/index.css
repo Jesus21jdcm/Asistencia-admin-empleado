@@ -17,8 +17,18 @@
 }
 
 @layer base {
+  html {
+    overscroll-behavior: none;
+    overscroll-behavior-y: none;
+    height: 100%;
+  }
+
   body {
     @apply bg-slate-50 text-slate-900 antialiased selection:bg-primary-100 selection:text-primary-700;
+    overscroll-behavior: none;
+    overscroll-behavior-y: none;
+    touch-action: pan-x pan-y;
+    height: 100%;
   }
 }
 

@@ -20,7 +20,7 @@ const shiftSchema = z.object({
   exitTime: z.string().min(1, 'La hora de salida es obligatoria'),
   lunchStartTime: z.string().optional(),
   lunchEndTime: z.string().optional(),
-  entryTolerance: z.number().min(0, 'No puede ser negativo').optional().default(0),
+  entryTolerance: z.number().min(0, 'No puede ser negativo'),
 });
 
 type ShiftFormValues = z.infer<typeof shiftSchema>;
@@ -197,7 +197,7 @@ export const ShiftsPage = () => {
               {table.getHeaderGroups().map(headerGroup => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map(header => (
-                    <th key={header.id} className="px-6 py-4 whitespace-nowrap">
+                    <th key={header.id} className="px-6 py-4">
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </th>
                   ))}

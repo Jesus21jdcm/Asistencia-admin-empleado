@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { authService } from '../../services/authService';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, Loader2, ShieldCheck, User, CreditCard, Compass, MapPin } from 'lucide-react';
+import { Lock, Mail, Loader2, ShieldCheck, User, CreditCard, Compass, MapPin, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 const loginSchema = z.object({
@@ -110,6 +110,15 @@ export const LoginPage: React.FC = () => {
       <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl"></div>
 
       <div className="relative">
+        <button
+          onClick={() => navigate('/')}
+          type="button"
+          className="absolute top-0 left-0 p-2 -ml-2 -mt-2 text-slate-400 hover:text-primary-600 hover:bg-slate-50 rounded-full transition-colors z-10"
+          title="Volver al inicio"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+
         <div className="mb-8 text-center flex flex-col items-center">
           <div className="flex items-center justify-center mb-6 w-full">
             <img src="/logo_blue.png" alt="GeoAsistencia" className="h-24 sm:h-32 w-auto object-contain" />

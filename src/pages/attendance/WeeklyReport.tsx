@@ -128,13 +128,13 @@ export const WeeklyReport = () => {
                   return (
                     <tr key={dateStr} className={`hover:bg-slate-50/80 transition-colors ${isAbsent ? 'bg-red-50/20' : record ? '' : leaveInfo ? 'bg-blue-50/20' : 'bg-slate-50/30 opacity-70'
                       }`}>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-slate-800 capitalize">{format(date, 'EEEE', { locale: es })}</span>
                           <span className="text-slate-500 font-medium">{format(date, 'dd/MM/yyyy')}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4">
                         {isFuture ? (
                           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
                             PRÓXIMAMENTE

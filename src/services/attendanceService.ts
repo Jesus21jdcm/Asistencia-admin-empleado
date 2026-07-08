@@ -47,8 +47,8 @@ export const attendanceService = {
       ...doc.data()
     })) as AttendanceRecord[];
     return records.sort((a, b) => {
-      const dateA = a.date || (a as unknown).timestamp || '';
-      const dateB = b.date || (b as unknown).timestamp || '';
+      const dateA = a.date || ((a as unknown as Record<string, unknown>).timestamp as string) || '';
+      const dateB = b.date || ((b as unknown as Record<string, unknown>).timestamp as string) || '';
       return new Date(dateB).getTime() - new Date(dateA).getTime();
     });
   },

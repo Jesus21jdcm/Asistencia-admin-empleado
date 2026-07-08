@@ -420,7 +420,7 @@ export const ZonesPage = () => {
               {table.getHeaderGroups().map(headerGroup => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map(header => (
-                    <th key={header.id} className="px-6 py-4 whitespace-nowrap">
+                    <th key={header.id} className="px-6 py-4">
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </th>
                   ))}
@@ -461,293 +461,300 @@ export const ZonesPage = () => {
       {/* Modal CRUD */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-900">
-                {editingZone ? 'Editar Sede (Mapa)' : 'Nueva Sede (Mapa)'}
+          <div className="bg-white rounded-none shadow-2xl w-full max-w-7xl h-[95vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border-t-4 border-t-primary-600">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+              <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-primary-600" />
+                {editingZone ? 'Editar Sede y Áreas' : 'Registrar Nueva Sede y Áreas'}
               </h3>
-              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 transition-colors">
+              <button onClick={closeModal} className="text-slate-400 hover:text-slate-900 transition-colors p-1 bg-slate-100 hover:bg-slate-200">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit as any)} className="p-4 md:p-6 flex flex-col flex-1 overflow-y-auto">
-              <div className="flex flex-col md:flex-row gap-6 h-full md:overflow-hidden">
-                {/* Panel Izquierdo: Formulario */}
-                <div className="w-full md:w-1/3 space-y-4 md:overflow-y-auto sidebar-scrollbar md:pr-2 shrink-0 md:shrink">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre de la Sede</label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Sede Central"
-                      className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.name ? 'border-red-300' : 'border-slate-200'}`}
-                      {...register('name')}
-                    />
-                    {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit(onSubmit as any)} className="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden">
+              {/* Panel Izquierdo: Formulario */}
+              <div className="w-full md:w-[28rem] flex flex-col shrink-0 border-b md:border-b-0 md:border-r border-slate-200 bg-white z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+                <div className="p-5 space-y-6 md:overflow-y-auto sidebar-scrollbar flex-1">
+                  
+                  {/* Datos Básicos */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">1. Datos Básicos</h4>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Hora Entrada</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1.5">Nombre de la Sede</label>
                       <input
-                        type="time"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        {...register('entryTime')}
+                        type="text"
+                        placeholder="Ej. Sede Central"
+                        className={`w-full px-3.5 py-2.5 border rounded-none text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white ${errors.name ? 'border-red-300' : 'border-slate-200'}`}
+                        {...register('name')}
                       />
+                      {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Hora Salida</label>
-                      <input
-                        type="time"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        {...register('exitTime')}
-                      />
-                    </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Tolerancia de Entrada (minutos)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.entryTolerance ? 'border-red-300' : 'border-slate-200 bg-white'}`}
-                      {...register('entryTolerance')}
-                    />
-                    {errors.entryTolerance && <p className="mt-1 text-xs text-red-500">{errors.entryTolerance.message}</p>}
-                    <p className="text-xs text-slate-500 mt-1">Margen de tiempo permitido después de la hora de entrada antes de marcar tarde.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Días Laborables</label>
-                    <div className="flex flex-wrap gap-2">
-                      {[1, 2, 3, 4, 5, 6, 0].map(day => {
-                        const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-                        const currentDays = register('workDays').value || [1, 2, 3, 4, 5];
-                        // As we use react-hook-form uncontrolled we need a helper or watch
-                        return (
-                          <label key={day} className="flex items-center space-x-1.5 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100">
-                            <input
-                              type="checkbox"
-                              value={day}
-                              {...register('workDays')}
-                              className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                            />
-                            <span className="text-xs font-medium text-slate-700">{dayNames[day]}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Sub-sedes */}
-                  <div className="pt-2 border-t border-slate-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <label className="block text-sm font-medium text-slate-700">Sub-sedes (Sucursales)</label>
-                      <button
-                        type="button"
-                        onClick={handleAddSubZone}
-                        className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center bg-primary-50 px-2 py-1 rounded"
-                      >
-                        <Plus className="w-3 h-3 mr-1" /> Añadir
-                      </button>
-                    </div>
-                    {subZones.length > 0 && (
-                      <div className="space-y-3 mb-4">
-                        {subZones.map((sz, index) => (
-                          <div 
-                            key={`sz-${index}`} 
-                            className={`p-3 rounded-lg border ${activePolygonIndex === index ? 'border-primary-500 bg-primary-50/30' : 'border-slate-200 bg-white'}`}
-                          >
-                            <div className="flex gap-2 mb-2">
-                              <input
-                                type="text"
-                                placeholder="Nombre sub-sede"
-                                value={sz.name}
-                                onChange={(e) => handleUpdateSubZoneName(index, e.target.value)}
-                                className="flex-1 px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:border-primary-500"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveSubZone(index)}
-                                className="p-1.5 text-red-500 hover:bg-red-50 rounded"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <div className="flex justify-between items-center text-xs">
-                              <span className="text-slate-500">{sz.polygon.length} / 4 Puntos GPS</span>
-                              <button
-                                type="button"
-                                onClick={() => setActivePolygonIndex(index)}
-                                className={`px-2 py-1 rounded font-medium ${activePolygonIndex === index ? 'bg-primary-100 text-primary-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                              >
-                                {activePolygonIndex === index ? 'Editando polígono...' : 'Editar polígono'}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Hora Entrada</label>
+                        <input
+                          type="time"
+                          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-none text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white"
+                          {...register('entryTime')}
+                        />
                       </div>
-                    )}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Hora Salida</label>
+                        <input
+                          type="time"
+                          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-none text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white"
+                          {...register('exitTime')}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tolerancia (minutos)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        className={`w-full px-3.5 py-2.5 border rounded-none text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors bg-slate-50/50 hover:bg-white ${errors.entryTolerance ? 'border-red-300' : 'border-slate-200'}`}
+                        {...register('entryTolerance')}
+                      />
+                      <p className="text-xs text-slate-500 mt-1.5">Margen antes de marcar llegada tarde.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Días Laborables</label>
+                      <div className="flex flex-wrap gap-2">
+                        {[1, 2, 3, 4, 5, 6, 0].map(day => {
+                          const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                          return (
+                            <label key={day} className="flex items-center space-x-1.5 bg-slate-50 px-2 py-1.5 rounded-none border border-slate-200 cursor-pointer hover:bg-white hover:border-primary-300 transition-colors">
+                              <input
+                                type="checkbox"
+                                value={day}
+                                {...register('workDays')}
+                                className="rounded-none border-slate-300 text-primary-600 focus:ring-primary-500"
+                              />
+                              <span className="text-xs font-medium text-slate-700">{dayNames[day]}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className={`p-4 rounded-xl border text-sm transition-colors ${activePolygonIndex === -1 ? 'bg-indigo-50/50 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="font-semibold text-slate-800 flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-primary-600" />
-                        {activePolygonIndex === -1 ? 'Sede Principal' : `Sub-sede ${activePolygonIndex + 1}`}
-                      </h4>
-                      {activePolygonIndex !== -1 && (
+                  {/* Geocercas */}
+                  <div className="space-y-4 pt-4">
+                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">2. Áreas Geográficas</h4>
+                    
+                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-none">
+                      <div className="flex justify-between items-center mb-3">
+                        <h5 className="font-semibold text-sm text-slate-800 flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-primary-600" />
+                          Sede Principal
+                        </h5>
                         <button 
                           type="button" 
                           onClick={() => setActivePolygonIndex(-1)}
-                          className="text-xs bg-white border border-slate-200 px-2 py-1 rounded text-slate-600 hover:bg-slate-50"
+                          className={`text-xs px-2.5 py-1 font-medium transition-colors border ${activePolygonIndex === -1 ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
                         >
-                          Volver
+                          {activePolygonIndex === -1 ? 'Editando...' : 'Editar Área'}
                         </button>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center justify-between mb-3 text-xs text-slate-600">
-                      <span>Dibuja 4 puntos en el mapa o usa el GPS.</span>
-                      <span className="font-bold text-primary-700 bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
-                        {activePolygonIndex === -1 ? currentPoints.length : subZones[activePolygonIndex]?.polygon.length || 0} / 4
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleCaptureCurrentLocation}
-                      disabled={isCapturingGps || (activePolygonIndex === -1 ? currentPoints.length >= 4 : subZones[activePolygonIndex]?.polygon.length >= 4)}
-                      className="w-full flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg shadow-sm hover:bg-primary-700 hover:shadow-md transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed group text-sm"
-                    >
-                      {isCapturingGps ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Obteniendo...
-                        </>
-                      ) : (
-                        <>
-                          <Navigation className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
-                          Guardar mi posición actual
-                        </>
-                      )}
-                    </button>
-                    {gpsError && <p className="mt-2 text-xs text-red-500 text-center font-medium">{gpsError}</p>}
-                    {errors.polygon && <p className="mt-2 text-xs text-red-500 font-bold bg-red-50 p-2 rounded-lg border border-red-100">{errors.polygon.message}</p>}
-
-                    <div className="mt-3">
-                      <button
-                        type="button"
-                        onClick={handleClearMap}
-                        className="w-full flex items-center justify-center px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors text-xs font-semibold"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Limpiar Puntos
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 flex flex-col gap-3 mt-auto">
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full inline-flex items-center justify-center px-4 py-2.5 font-medium text-sm disabled:opacity-70 bg-primary-600 text-white rounded-none btn-angled shadow-sm shadow-black/10 hover:bg-primary-700 hover:scale-[1.02] active:bg-primary-800 active:scale-95 transition-all duration-200"
-                    >
-                      {isSubmitting ? (
-                        <span className="flex items-center">
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Guardando...
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-600">Puntos marcados:</span>
+                        <span className={`font-bold px-2 py-0.5 rounded-none ${currentPoints.length === 4 ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {currentPoints.length} / 4
                         </span>
-                      ) : (
-                        <span>{editingZone ? 'Actualizar Sede' : 'Guardar Sede'}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="block text-sm font-semibold text-slate-700">Sub-sedes (Opcional)</label>
+                        <button
+                          type="button"
+                          onClick={handleAddSubZone}
+                          className="text-xs text-white bg-slate-800 hover:bg-slate-900 px-2.5 py-1.5 transition-colors flex items-center font-medium"
+                        >
+                          <Plus className="w-3 h-3 mr-1" /> Añadir Sub-sede
+                        </button>
+                      </div>
+                      
+                      {subZones.length > 0 && (
+                        <div className="space-y-3">
+                          {subZones.map((sz, index) => (
+                            <div 
+                              key={`sz-${index}`} 
+                              className={`p-3 border transition-colors ${activePolygonIndex === index ? 'border-primary-500 bg-primary-50/20' : 'border-slate-200 bg-white'}`}
+                            >
+                              <div className="flex gap-2 mb-3">
+                                <input
+                                  type="text"
+                                  placeholder="Nombre sub-sede"
+                                  value={sz.name}
+                                  onChange={(e) => handleUpdateSubZoneName(index, e.target.value)}
+                                  className="flex-1 px-2.5 py-1.5 border border-slate-200 text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 bg-slate-50 hover:bg-white transition-colors"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveSubZone(index)}
+                                  className="px-2 py-1.5 text-slate-400 border border-slate-200 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors"
+                                  title="Eliminar Sub-sede"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-600">
+                                  Puntos: <span className={`font-bold ${sz.polygon.length === 4 ? 'text-green-600' : 'text-amber-600'}`}>{sz.polygon.length} / 4</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setActivePolygonIndex(index)}
+                                  className={`px-2.5 py-1 font-medium border transition-colors ${activePolygonIndex === index ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                  {activePolygonIndex === index ? 'Editando...' : 'Editar Área'}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={closeModal}
-                      className="w-full px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-none btn-angled transition-colors border border-slate-200"
-                    >
-                      Cancelar
-                    </button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Panel Derecho: Mapa */}
-                <div className="w-full md:w-2/3 h-80 md:h-full min-h-[300px] rounded-2xl overflow-hidden border border-slate-200 relative shrink-0">
-                  <MapContainer
-                    center={currentPoints.length > 0 ? [currentPoints[0].lat, currentPoints[0].lng] : [8.6226, -70.2075]} // Default Barinas
-                    zoom={15}
-                    style={{ height: '100%', minHeight: '300px', width: '100%', zIndex: 10 }}
-                    ref={setMapInstance}
+                <div className="p-5 border-t border-slate-200 bg-slate-50/50 space-y-3">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full flex justify-center items-center py-3 px-4 text-sm font-bold disabled:opacity-70 disabled:cursor-not-allowed bg-primary-600 text-white rounded-none shadow-sm hover:brightness-110 active:scale-95 transition-all duration-200"
                   >
-                    <MapResizer />
-                    <GeocoderControl />
-                    <LocationEvents setIsLocating={setIsLocating} setUserLocation={setUserLocation} />
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Guardando...
+                      </>
+                    ) : (
+                      editingZone ? 'Actualizar Sede' : 'Guardar Sede'
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="w-full px-4 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
 
-                    {/* Layer Híbrido: Satélite + Nombres de Calles y Locales (Google Hybrid) */}
-                    <TileLayer
-                      attribution='&copy; Google'
-                      url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
-                      maxZoom={20}
-                    />
-                    <MapClickHandler onPointAdd={handleMapClick} />
-
-                    {/* Isolating conditional and dynamic components in LayerGroups prevents React DOM conflicts (insertBefore errors) */}
-                    <LayerGroup>
-                      {userLocation && (
-                        <Marker position={[userLocation.lat, userLocation.lng]}>
-                          <Popup>Estás aquí</Popup>
-                        </Marker>
-                      )}
-                    </LayerGroup>
-
-                    <LayerGroup>
-                      {currentPoints.map((pt, idx) => (
-                        <Marker key={`pt-main-${pt.lat}-${pt.lng}-${idx}`} position={[pt.lat, pt.lng]}>
-                          <Popup>Punto Principal {idx + 1}</Popup>
-                        </Marker>
-                      ))}
-                      {subZones.flatMap((sz, szIdx) => 
-                        sz.polygon.map((pt, idx) => (
-                          <Marker key={`pt-sz${szIdx}-${pt.lat}-${pt.lng}-${idx}`} position={[pt.lat, pt.lng]}>
-                            <Popup>Sede: {sz.name || `Sub-sede ${szIdx+1}`} - Punto {idx + 1}</Popup>
-                          </Marker>
-                        ))
-                      )}
-                    </LayerGroup>
-
-                    <LayerGroup>
-                      {currentPoints.length >= 3 && (
-                        <Polygon positions={currentPoints.map(p => [p.lat, p.lng])} pathOptions={{ color: '#4f46e5', fillColor: '#6366f1', fillOpacity: activePolygonIndex === -1 ? 0.4 : 0.1, weight: activePolygonIndex === -1 ? 3 : 1 }} />
-                      )}
-                      {subZones.map((sz, idx) => (
-                        sz.polygon.length >= 3 && (
-                          <Polygon 
-                            key={`poly-sz-${idx}`}
-                            positions={sz.polygon.map(p => [p.lat, p.lng])} 
-                            pathOptions={{ 
-                              color: '#10b981', // Verde para sub-sedes
-                              fillColor: '#34d399', 
-                              fillOpacity: activePolygonIndex === idx ? 0.4 : 0.1,
-                              weight: activePolygonIndex === idx ? 3 : 1 
-                            }} 
-                          />
-                        )
-                      ))}
-                    </LayerGroup>
-                  </MapContainer>
-
-                  {/* Botón flotante fuera del MapContainer para evitar conflictos con Leaflet DOM */}
-                  <div className="absolute top-20 left-4 z-[100]">
-                    <button
-                      type="button"
-                      onClick={handleLocate}
-                      disabled={isLocating}
-                      className="bg-white p-2.5 rounded-xl shadow-md border border-slate-200 text-slate-700 hover:text-primary-600 hover:bg-slate-50 transition-colors disabled:opacity-50 flex items-center justify-center"
-                      title="Mi ubicación actual"
-                    >
-                      {isLocating ? <Loader2 className="w-5 h-5 animate-spin text-primary-600" /> : <Navigation className="w-5 h-5" />}
-                    </button>
+              {/* Panel Derecho: Mapa */}
+              <div className="h-[450px] md:h-auto md:flex-1 relative flex flex-col shrink-0 bg-slate-100">
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-white shadow-lg border border-slate-200 px-4 py-2 flex items-center gap-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className={`w-2.5 h-2.5 rounded-full ${activePolygonIndex === -1 ? 'bg-primary-600 animate-pulse' : 'bg-slate-300'}`}></div>
+                    <span className="font-semibold text-slate-700">
+                      Editando: {activePolygonIndex === -1 ? 'Sede Principal' : `Sub-sede ${activePolygonIndex + 1}`}
+                    </span>
                   </div>
+                  <div className="w-px h-5 bg-slate-200"></div>
+                  <button
+                    type="button"
+                    onClick={handleClearMap}
+                    className="text-xs font-semibold text-slate-600 hover:text-red-600 flex items-center gap-1.5 transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Limpiar Área
+                  </button>
+                </div>
+
+                <MapContainer
+                  center={currentPoints.length > 0 ? [currentPoints[0].lat, currentPoints[0].lng] : [8.6226, -70.2075]} // Default Barinas
+                  zoom={15}
+                  style={{ height: '100%', width: '100%', zIndex: 10 }}
+                  ref={setMapInstance}
+                >
+                  <MapResizer />
+                  <GeocoderControl />
+                  <LocationEvents setIsLocating={setIsLocating} setUserLocation={setUserLocation} />
+
+                  <TileLayer
+                    attribution='&copy; Google'
+                    url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+                    maxZoom={20}
+                  />
+                  <MapClickHandler onPointAdd={handleMapClick} />
+
+                  <LayerGroup>
+                    {userLocation && (
+                      <Marker position={[userLocation.lat, userLocation.lng]}>
+                        <Popup>Estás aquí</Popup>
+                      </Marker>
+                    )}
+                  </LayerGroup>
+
+                  <LayerGroup>
+                    {currentPoints.map((pt, idx) => (
+                      <Marker key={`pt-main-${pt.lat}-${pt.lng}-${idx}`} position={[pt.lat, pt.lng]}>
+                        <Popup>Punto Principal {idx + 1}</Popup>
+                      </Marker>
+                    ))}
+                    {subZones.flatMap((sz, szIdx) => 
+                      sz.polygon.map((pt, idx) => (
+                        <Marker key={`pt-sz${szIdx}-${pt.lat}-${pt.lng}-${idx}`} position={[pt.lat, pt.lng]}>
+                          <Popup>Sede: {sz.name || `Sub-sede ${szIdx+1}`} - Punto {idx + 1}</Popup>
+                        </Marker>
+                      ))
+                    )}
+                  </LayerGroup>
+
+                  <LayerGroup>
+                    {currentPoints.length >= 3 && (
+                      <Polygon positions={currentPoints.map(p => [p.lat, p.lng])} pathOptions={{ color: '#4f46e5', fillColor: '#6366f1', fillOpacity: activePolygonIndex === -1 ? 0.4 : 0.1, weight: activePolygonIndex === -1 ? 4 : 1.5 }} />
+                    )}
+                    {subZones.map((sz, idx) => (
+                      sz.polygon.length >= 3 && (
+                        <Polygon 
+                          key={`poly-sz-${idx}`}
+                          positions={sz.polygon.map(p => [p.lat, p.lng])} 
+                          pathOptions={{ 
+                            color: '#10b981', 
+                            fillColor: '#34d399', 
+                            fillOpacity: activePolygonIndex === idx ? 0.4 : 0.1,
+                            weight: activePolygonIndex === idx ? 4 : 1.5 
+                          }} 
+                        />
+                      )
+                    ))}
+                  </LayerGroup>
+                </MapContainer>
+
+                <div className="absolute bottom-6 right-6 z-[1000] flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={handleLocate}
+                    disabled={isLocating}
+                    className="bg-white p-3 shadow-lg border border-slate-200 text-slate-700 hover:text-primary-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                    title="Mi ubicación actual"
+                  >
+                    {isLocating ? <Loader2 className="w-5 h-5 animate-spin text-primary-600" /> : <Navigation className="w-5 h-5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCaptureCurrentLocation}
+                    disabled={isCapturingGps || (activePolygonIndex === -1 ? currentPoints.length >= 4 : subZones[activePolygonIndex]?.polygon.length >= 4)}
+                    className="bg-primary-600 text-white p-3 shadow-lg hover:bg-primary-700 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed group flex flex-col items-center justify-center gap-1"
+                    title="Guardar punto aquí"
+                  >
+                    {isCapturingGps ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <>
+                        <MapPin className="w-6 h-6 group-hover:-translate-y-1 transition-transform" />
+                        <span className="text-[10px] font-bold tracking-wider">GPS</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </form>

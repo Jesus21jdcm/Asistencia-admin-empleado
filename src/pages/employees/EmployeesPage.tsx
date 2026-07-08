@@ -13,10 +13,11 @@ import { employeeService, type Employee } from '../../services/employeeService';
 import { zoneService } from '../../services/zoneService';
 import { shiftService } from '../../services/shiftService';
 import { useOutletContext } from 'react-router-dom';
+import { authService } from '../../services/authService';
 
 export const EmployeesPage = () => {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'pending' | 'active'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'active'>('active');
 
   // Guardamos localmente qué sede ha seleccionado el admin para cada empleado pendiente
   const [selectedZones, setSelectedZones] = useState<Record<string, string>>({});
@@ -24,6 +25,7 @@ export const EmployeesPage = () => {
 
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<Employee>>({});
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   // Queries
   const { data: pendingEmployees = [], isLoading: isLoadingPending } = useQuery({
@@ -144,6 +146,15 @@ export const EmployeesPage = () => {
       {/* Tabs */}
       <div className="flex border-b border-slate-200">
         <button
+          onClick={() => setActiveTab('active')}
+          className={`pb-4 px-6 text-sm font-semibold transition-all relative ${activeTab === 'active'
+            ? 'text-primary-600 border-b-2 border-primary-600'
+            : 'text-slate-500 hover:text-slate-800'
+            }`}
+        >
+          Empleados Activos
+        </button>
+        <button
           onClick={() => setActiveTab('pending')}
           className={`pb-4 px-6 text-sm font-semibold transition-all relative ${activeTab === 'pending'
             ? 'text-primary-600 border-b-2 border-primary-600'
@@ -156,13 +167,6 @@ export const EmployeesPage = () => {
               {filteredPendingEmployees.length}
             </span>
           )}
-        </button>
-        <button
-          onClick={() => setActiveTab('active')}
-          className={`py-3 px-1 font-semibold text-sm border-b-2 transition-colors ${activeTab === 'active' ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-        >
-          Empleados Activos
         </button>
       </div>
 
@@ -264,17 +268,16 @@ export const EmployeesPage = () => {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-none border border-slate-200 shadow-sm overflow-hidden w-full">
-          <div className="overflow-x-auto">
+        <div className="bg-white rounded-none border border-slate-200 shadow-sm w-full">
+          <div className="overflow-x-auto min-w-0">
             <table className="w-full text-sm text-left table-gradient-rows">
               <thead className="bg-white text-slate-700/80 font-semibold">
                 <tr>
-                  <th className="px-6 py-4">Empleado</th>
-                  <th className="px-6 py-4">Correo</th>
-                  <th className="px-6 py-4">Sede Asignada</th>
-                  <th className="px-6 py-4">Turno Asignado</th>
-                  <th className="px-6 py-4">Almuerzo</th>
-                  <th className="px-6 py-4"></th>
+                  <th className="px-4 py-4 whitespace-nowrap">Empleado</th>
+                  <th className="px-4 py-4 whitespace-nowrap">Sede Asignada</th>
+                  <th className="px-4 py-4 whitespace-nowrap">Turno Asignado</th>
+                  <th className="px-4 py-4 whitespace-nowrap">Almuerzo</th>
+                  <th className="px-4 py-4 whitespace-nowrap"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -296,16 +299,15 @@ export const EmployeesPage = () => {
                   filteredActiveEmployees.map((employee) => {
                     return (
                       <tr key={employee.uid} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex items-center space-x-3">
                             <div className="w-8 h-8 rounded-full bg-primary-50 text-primary-700 flex items-center justify-center font-bold text-xs">
                               {employee.displayName.charAt(0).toUpperCase()}
                             </div>
-                            <span className="font-medium text-slate-900">{employee.displayName}</span>
+                            <span className="font-medium text-slate-900 whitespace-nowrap">{employee.displayName}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-500">{employee.email}</td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex items-center text-slate-700">
                             <Building className="w-4 h-4 mr-2 text-slate-400" />
                             <select
@@ -321,12 +323,12 @@ export const EmployeesPage = () => {
                             </select>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex items-center text-slate-700">
                             <select
                               value={employee.shiftId || ''}
                               onChange={(e) => updateZoneMutation.mutate({ uid: employee.uid, zoneId: employee.zoneId || '', shiftId: e.target.value })}
-                              className="bg-transparent text-sm focus:outline-none border-b border-transparent focus:border-slate-300 pb-0.5 cursor-pointer font-medium hover:text-primary-600 transition-colors max-w-[150px] truncate"
+                              className="bg-transparent text-sm focus:outline-none border-b border-transparent focus:border-slate-300 pb-0.5 cursor-pointer font-medium hover:text-primary-600 transition-colors max-w-[130px] truncate"
                             >
                               <option value="">Por defecto (Sede)</option>
                               {shifts.map((shift) => (
@@ -337,7 +339,7 @@ export const EmployeesPage = () => {
                             </select>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <input
                               type="time"
@@ -354,13 +356,14 @@ export const EmployeesPage = () => {
                             />
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-2">
                           <button
                             onClick={() => {
                               setSelectedEmployee(employee);
                               setEditFormData({ displayName: employee.displayName, documentId: employee.documentId });
                             }}
-                            className="inline-flex items-center text-xs font-semibold text-primary-600 hover:text-primary-800 hover:bg-primary-50 px-3 py-1.5 rounded-lg transition-colors"
+                            className="inline-flex items-center text-xs font-semibold text-primary-600 hover:text-primary-800 hover:bg-primary-50 px-2.5 py-1.5 rounded-lg transition-colors"
                             title="Editar Perfil"
                           >
                             <UserCog className="w-4 h-4 mr-1" />
@@ -368,11 +371,12 @@ export const EmployeesPage = () => {
                           </button>
                           <button
                             onClick={() => rejectMutation.mutate(employee.uid)}
-                            className="inline-flex items-center text-xs font-semibold    px-3 py-1.5  transition-colors bg-[#49769F] text-white rounded-none btn-angled shadow-sm shadow-black/10 hover:brightness-110 hover:scale-[1.02] active:brightness-90 active:scale-95 transition-all duration-200"
+                            className="inline-flex items-center text-xs font-semibold px-2.5 py-1.5 transition-colors bg-[#49769F] text-white rounded-none btn-angled shadow-sm shadow-black/10 hover:brightness-110 hover:scale-[1.02] active:brightness-90 active:scale-95 duration-200"
                             title="Desactivar"
                           >
                             Desactivar
                           </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -433,6 +437,34 @@ export const EmployeesPage = () => {
                   value={selectedEmployee.email || ''}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 text-slate-500 text-sm cursor-not-allowed"
                 />
+              </div>
+
+              {/* Cambiar Contraseña */}
+              <div className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-amber-900">Restablecer contraseña</p>
+                  <p className="text-xs text-amber-600 mt-0.5">Se enviará un enlace al correo del empleado</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isSendingReset}
+                  onClick={async () => {
+                    if (!selectedEmployee?.email) return;
+                    setIsSendingReset(true);
+                    try {
+                      await authService.resetPassword(selectedEmployee.email);
+                      toast.success(`Enlace enviado a ${selectedEmployee.email}`);
+                    } catch {
+                      toast.error('Error al enviar el correo de restablecimiento');
+                    } finally {
+                      setIsSendingReset(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors disabled:opacity-60 shrink-0 ml-4"
+                >
+                  {isSendingReset ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  {isSendingReset ? 'Enviando...' : 'Enviar enlace'}
+                </button>
               </div>
               <div className="pt-4 flex gap-3">
                 <button

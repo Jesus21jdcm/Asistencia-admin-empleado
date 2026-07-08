@@ -166,11 +166,11 @@ export const LeavesPage = () => {
           <table className="w-full text-sm text-left table-gradient-rows">
             <thead className="bg-white text-slate-700/80 font-semibold">
               <tr className="border-b border-slate-200">
-                <th className="px-6 py-4 whitespace-nowrap uppercase tracking-wider text-[11px] font-bold text-slate-500">Fecha</th>
-                <th className="px-6 py-4 whitespace-nowrap uppercase tracking-wider text-[11px] font-bold text-slate-500">Empleado</th>
-                <th className="px-6 py-4 whitespace-nowrap uppercase tracking-wider text-[11px] font-bold text-slate-500">Motivo</th>
-                <th className="px-6 py-4 whitespace-nowrap uppercase tracking-wider text-[11px] font-bold text-slate-500">Estado</th>
-                <th className="px-6 py-4 whitespace-nowrap uppercase tracking-wider text-[11px] font-bold text-slate-500 text-right">Acciones</th>
+                <th className="px-6 py-4 uppercase tracking-wider text-[11px] font-bold text-slate-500">Fecha</th>
+                <th className="px-6 py-4 uppercase tracking-wider text-[11px] font-bold text-slate-500">Empleado</th>
+                <th className="px-6 py-4 uppercase tracking-wider text-[11px] font-bold text-slate-500">Motivo</th>
+                <th className="px-6 py-4 uppercase tracking-wider text-[11px] font-bold text-slate-500">Estado</th>
+                <th className="px-6 py-4 uppercase tracking-wider text-[11px] font-bold text-slate-500 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

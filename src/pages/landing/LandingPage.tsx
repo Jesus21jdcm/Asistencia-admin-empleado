@@ -25,21 +25,21 @@ export const LandingPage: React.FC = () => {
       {/* Header / Navbar */}
       <header className={`w-full fixed top-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#0A4174]/90 backdrop-blur-md shadow-lg py-1' : 'bg-transparent py-4'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
+          <div className="flex justify-between items-center h-16 sm:h-20">
             {/* Logo */}
-            <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-              <img src="/logo_blue.png" alt="GeoAsistencia" className="h-12 w-auto object-contain" />
-              <span className="text-white font-bold text-2xl tracking-[0.1em]">GEOASISTO</span>
+            <div className="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0" onClick={() => navigate('/')}>
+              <img src="/logo_blue.png" alt="GeoAsistencia" className="h-9 sm:h-12 w-auto object-contain" />
+              <span className="text-white font-bold text-base sm:text-2xl tracking-[0.1em]">GEOASISTO</span>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center">
               <button
                 onClick={() => navigate('/login')}
-                className="bg-white hover:bg-slate-100 text-[#0A4174] px-5 py-2.5 text-sm font-semibold rounded-none btn-angled shadow-md transition-all active:scale-95 flex items-center gap-2"
+                className="bg-white hover:bg-slate-100 text-[#0A4174] px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm font-semibold rounded-none btn-angled shadow-md transition-all active:scale-95 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap"
               >
                 Acceder al Sistema
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               </button>
             </div>
           </div>
