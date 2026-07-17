@@ -52,7 +52,7 @@ export const employeeService = {
 
   approveEmployee: async (uid: string, zoneId: string, shiftId?: string): Promise<void> => {
     const docRef = doc(db, COLLECTION_NAME, uid);
-    const data: unknown = {
+    const data: Record<string, unknown> = {
       status: 'activo',
       zoneId: zoneId
     };

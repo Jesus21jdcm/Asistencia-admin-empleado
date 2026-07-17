@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, MapPin, BarChart3, Clock, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, MapPin, BarChart3, Clock, ArrowRight, CheckCircle2, Download } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -92,7 +92,15 @@ export const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <h2 className="text-3xl font-bold text-slate-900 mb-4">¿Por qué elegir GeoAsisto?</h2>
-            <p className="text-slate-500 text-lg">La plataforma más completa y fácil de usar para modernizar tu departamento de Recursos Humanos.</p>
+            <p className="text-slate-500 text-lg mb-6">La plataforma más completa y fácil de usar para modernizar tu departamento de Recursos Humanos.</p>
+            <a 
+              href="/GeAsistG.apk" 
+              download 
+              className="inline-flex items-center gap-2 bg-[#0A4174] text-white px-6 py-3 rounded-xl font-medium hover:bg-[#08335c] transition-colors shadow-lg hover:shadow-xl"
+            >
+              <Download className="w-5 h-5" />
+              Descargar APK
+            </a>
           </div>
 
           <div className="flex flex-col lg:flex-row items-center gap-16 animate-fade-in-up" style={{ animationDelay: '400ms' }}>
